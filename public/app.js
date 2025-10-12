@@ -33,6 +33,12 @@ let activeFilter = 'all';
 
 init();
 
+/**
+ * Initializes the client-side application by wiring event listeners and
+ * loading the workout type configuration from the API.
+ *
+ * @returns {Promise<void>} Resolves once configuration has been loaded.
+ */
 async function init() {
   await loadWorkoutTypes();
   fileInput.addEventListener('change', handleUpload);
@@ -45,6 +51,11 @@ async function init() {
   );
 }
 
+/**
+ * Fetches the workout type configuration to style rendered workouts.
+ *
+ * @returns {Promise<void>} Resolves when the configuration request completes.
+ */
 async function loadWorkoutTypes() {
   try {
     const response = await fetch('/api/workout-types');
@@ -59,6 +70,12 @@ async function loadWorkoutTypes() {
   }
 }
 
+/**
+ * Handles selection of an Apple Health export file and triggers upload.
+ *
+ * @param {Event} event Change event emitted by the file input.
+ * @returns {Promise<void>} Resolves after the upload flow completes.
+ */
 async function handleUpload(event) {
   const file = event.target.files?.[0];
   if (!file) {
@@ -107,6 +124,12 @@ async function handleUpload(event) {
   }
 }
 
+/**
+ * Applies the currently selected filter to the workout collection.
+ *
+ * @param {Array<object>} workouts Normalized workout list.
+ * @returns {Array<object>} Filtered workouts matching the active filter.
+ */
 function filterWorkouts(workouts) {
   if (activeFilter === 'all') {
     return workouts;
@@ -123,6 +146,12 @@ function filterWorkouts(workouts) {
   return workouts.filter((workout) => !workout.activityKey || !workout.activityKey.toLowerCase().includes('mind'));
 }
 
+/**
+ * Renders workout cards grouped by month and day in the DOM container.
+ *
+ * @param {Array<object>} workouts Collection of workouts to present.
+ * @returns {void}
+ */
 function renderWorkouts(workouts) {
   workoutsContainer.innerHTML = '';
 
@@ -168,6 +197,12 @@ function renderWorkouts(workouts) {
   }
 }
 
+/**
+ * Groups workouts by month and returns ordered grouping metadata.
+ *
+ * @param {Array<object>} workouts Collection of workouts to group.
+ * @returns {Array<{ key: string, month: string, items: Array<object> }>} Month group descriptors.
+ */
 function groupByMonth(workouts) {
   const map = new Map();
   workouts.forEach((workout) => {
@@ -191,6 +226,12 @@ function groupByMonth(workouts) {
     });
 }
 
+/**
+ * Groups workouts for a single month into day buckets.
+ *
+ * @param {Array<object>} workouts Workouts that belong to the same month.
+ * @returns {Array<{ dayKey: string, label: { weekday: string, date: string }, items: Array<object> }>} Day group data.
+ */
 function groupByDay(workouts) {
   const map = new Map();
   workouts.forEach((workout) => {
@@ -217,6 +258,12 @@ function groupByDay(workouts) {
     });
 }
 
+/**
+ * Creates a DOM node representing a single workout card styled like Apple Fitness.
+ *
+ * @param {object} workout Normalized workout data.
+ * @returns {HTMLElement} Rendered workout card element.
+ */
 function createWorkoutCard(workout) {
   const template = document.getElementById('workout-card-template');
   const card = template.content.firstElementChild.cloneNode(true);
@@ -281,6 +328,13 @@ function createWorkoutCard(workout) {
   return card;
 }
 
+/**
+ * Creates a metric pill element displaying workout statistics.
+ *
+ * @param {string} text Text content to display inside the pill.
+ * @param {string} className CSS classes applied to the pill element.
+ * @returns {HTMLDivElement} Configured pill element.
+ */
 function createMetricPill(text, className) {
   const pill = document.createElement('div');
   pill.className = className;
@@ -288,6 +342,13 @@ function createMetricPill(text, className) {
   return pill;
 }
 
+/**
+ * Renders aggregated workout statistics in the summary header.
+ *
+ * @param {{ totalCount: number, totalDurationSeconds: number, totalEnergy: number, totalEnergyUnit?: string, totalDistance: number, totalDistanceUnit?: string }} stats
+ * Aggregated statistics returned by the backend.
+ * @returns {void}
+ */
 function updateSummary(stats) {
   if (!stats) {
     return;
@@ -299,6 +360,12 @@ function updateSummary(stats) {
   summaryValues.distance.textContent = `${formatNumber(stats.totalDistance)} ${stats.totalDistanceUnit || 'km'}`;
 }
 
+/**
+ * Converts total workout seconds into a concise summary string.
+ *
+ * @param {number} seconds Total duration expressed in seconds.
+ * @returns {string} Human-readable summary duration.
+ */
 function formatSummaryDuration(seconds) {
   const total = Math.max(0, Math.round(seconds));
   const hours = Math.floor(total / 3600);
@@ -306,12 +373,24 @@ function formatSummaryDuration(seconds) {
   return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
+/**
+ * Formats numeric values according to Polish locale conventions.
+ *
+ * @param {number} value Number to format.
+ * @returns {string} Localized number string.
+ */
 function formatNumber(value) {
   return new Intl.NumberFormat('pl-PL', {
     maximumFractionDigits: value >= 10 ? 1 : 2,
   }).format(value || 0);
 }
 
+/**
+ * Maps Apple Health goal codes to localized descriptions.
+ *
+ * @param {string} goalType Raw goal identifier.
+ * @returns {string} Localized goal description.
+ */
 function formatGoal(goalType) {
   if (!goalType) return '';
   const normalized = goalType.toLowerCase();
@@ -322,19 +401,42 @@ function formatGoal(goalType) {
   return `Cel: ${goalType}`;
 }
 
+/**
+ * Converts Apple Health workout activity keys into human-friendly labels.
+ *
+ * @param {string} key Raw activity key from the export.
+ * @returns {string} Human-readable fallback label.
+ */
 function formatActivityKey(key) {
   if (!key) return 'Trening';
   return key.replace('HKWorkoutActivityType', '').replace(/([a-z])([A-Z])/g, '$1 $2');
 }
 
+/**
+ * Updates the status banner shown above the workout grid.
+ *
+ * @param {string} message Status message to display.
+ * @returns {void}
+ */
 function setUploadStatus(message) {
   uploadStatus.textContent = message;
 }
 
+/**
+ * Shows or hides the workout summary header.
+ *
+ * @param {boolean} show When true the summary is visible.
+ * @returns {void}
+ */
 function toggleSummary(show) {
   summarySection.classList.toggle('hidden', !show);
 }
 
+/**
+ * Displays a placeholder state while workouts are being processed.
+ *
+ * @returns {void}
+ */
 function showLoadingState() {
   workoutsContainer.innerHTML = `
     <div class="empty-state">
@@ -344,6 +446,12 @@ function showLoadingState() {
   `;
 }
 
+/**
+ * Capitalizes the first letter of the provided string.
+ *
+ * @param {string} value String to capitalize.
+ * @returns {string} Capitalized string.
+ */
 function capitalize(value) {
   if (!value) return value;
   return value.charAt(0).toUpperCase() + value.slice(1);
