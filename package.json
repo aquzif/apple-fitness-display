@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -17,5 +19,14 @@
   "bugs": {
     "url": "https://github.com/aquzif/apple-fitness-display/issues"
   },
-  "homepage": "https://github.com/aquzif/apple-fitness-display#readme"
+  "homepage": "https://github.com/aquzif/apple-fitness-display#readme",
+  "dependencies": {
+    "dayjs": "^1.11.18",
+    "express": "^5.1.0",
+    "fast-xml-parser": "^5.3.0",
+    "multer": "^2.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
 }
