@@ -199,6 +199,21 @@ async function init() {
       renderWorkouts(filterWorkouts(allWorkouts));
     })
   );
+
+
+  if(localStorage.getItem('payload')){
+    const payload = JSON.parse(localStorage.getItem('payload'));
+    allWorkouts = payload.workouts || [];
+    if (allWorkouts.length) {
+      renderWorkouts(filterWorkouts(allWorkouts));
+      updateSummary(payload.stats);
+      toggleSummary(true);
+      setUploadStatus(`Załadowano ${allWorkouts.length} treningów.`);
+    }
+  }else{
+      console.log('No payload in localStorage');
+  }
+
 }
 
 /**
@@ -258,6 +273,9 @@ async function handleUpload(event) {
 
     const payload = await response.json();
     allWorkouts = payload.workouts || [];
+
+
+    localStorage.setItem('payload', JSON.stringify(payload));
 
     if (!allWorkouts.length) {
       setUploadStatus('Nie znaleziono treningów w tym eksporcie.');
