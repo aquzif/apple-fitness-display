@@ -6,25 +6,65 @@
                 <h1 class="text-4xl font-semibold tracking-tight text-white sm:text-5xl">{{ __('Treningi') }}</h1>
             </div>
 
-            <div class="flex flex-wrap gap-2">
-                @foreach ([
-                    'all' => __('Wszystkie'),
-                    'workout' => __('Treningi'),
-                    'mind' => __('Mindfulness'),
-                    'cycling' => __('Kolarstwo'),
-                ] as $value => $label)
-                    <button
-                        type="button"
-                        wire:click="$set('filter', '{{ $value }}')"
-                        @class([
-                            'rounded-full border px-4 py-1.5 text-sm transition',
-                            'border-lime-400/50 bg-lime-400/20 text-white shadow-lg shadow-lime-400/30' => $filter === $value,
-                            'border-white/10 text-slate-300 hover:border-white/30 hover:text-white' => $filter !== $value,
-                        ])
-                    >
-                        {{ $label }}
-                    </button>
-                @endforeach
+            <div class="flex flex-col gap-4">
+                <div class="flex flex-wrap gap-2">
+                    @foreach ([
+                        'all' => __('Wszystkie'),
+                        'workout' => __('Treningi'),
+                        'mind' => __('Mindfulness'),
+                        'cycling' => __('Kolarstwo'),
+                    ] as $value => $label)
+                        <button
+                            type="button"
+                            wire:click="$set('filter', '{{ $value }}')"
+                            @class([
+                                'rounded-full border px-4 py-1.5 text-sm transition',
+                                'border-lime-400/50 bg-lime-400/20 text-white shadow-lg shadow-lime-400/30' => $filter === $value,
+                                'border-white/10 text-slate-300 hover:border-white/30 hover:text-white' => $filter !== $value,
+                            ])
+                        >
+                            {{ $label }}
+                        </button>
+                    @endforeach
+                </div>
+
+                @if ($minAvailableDate && $maxAvailableDate)
+                    <div class="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+                        <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-6">
+                                <label class="flex flex-col gap-1 text-xs uppercase tracking-[0.25em] text-slate-400">
+                                    <span>{{ __('Od') }}</span>
+                                    <input
+                                        type="date"
+                                        wire:model.live="startDate"
+                                        min="{{ $minAvailableDate }}"
+                                        max="{{ $maxAvailableDate }}"
+                                        class="rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-sm text-white focus:border-lime-400/60 focus:outline-none focus:ring-2 focus:ring-lime-400/30"
+                                    >
+                                </label>
+                                <label class="flex flex-col gap-1 text-xs uppercase tracking-[0.25em] text-slate-400">
+                                    <span>{{ __('Do') }}</span>
+                                    <input
+                                        type="date"
+                                        wire:model.live="endDate"
+                                        min="{{ $minAvailableDate }}"
+                                        max="{{ $maxAvailableDate }}"
+                                        class="rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-sm text-white focus:border-lime-400/60 focus:outline-none focus:ring-2 focus:ring-lime-400/30"
+                                    >
+                                </label>
+                            </div>
+                            <div class="text-xs text-slate-500">
+                                {{ __('Zakres dat wpływa na listę treningów oraz podsumowanie.') }}
+                            </div>
+                        </div>
+
+                        @if ($dateRangeError)
+                            <div class="mt-3 rounded-xl border border-rose-500/40 bg-rose-500/15 px-3 py-2 text-xs text-rose-100">
+                                {{ $dateRangeError }}
+                            </div>
+                        @endif
+                    </div>
+                @endif
             </div>
 
             @if ($statusMessage)
