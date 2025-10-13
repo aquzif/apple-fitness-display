@@ -33,23 +33,50 @@
                     @endif
                 </header>
 
+                @if ($minAvailableDate && $maxAvailableDate)
+                    <div class="rounded-2xl border border-white/10 bg-black/40 p-4 text-sm text-slate-300">
+                        <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-6">
+                                <label class="flex flex-col gap-1 text-xs uppercase tracking-[0.25em] text-slate-400">
+                                    <span>{{ __('Od') }}</span>
+                                    <input
+                                        type="date"
+                                        wire:model.live="startDate"
+                                        min="{{ $minAvailableDate }}"
+                                        max="{{ $maxAvailableDate }}"
+                                        class="rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-sm text-white focus:border-lime-400/60 focus:outline-none focus:ring-2 focus:ring-lime-400/30"
+                                    >
+                                </label>
+                                <label class="flex flex-col gap-1 text-xs uppercase tracking-[0.25em] text-slate-400">
+                                    <span>{{ __('Do') }}</span>
+                                    <input
+                                        type="date"
+                                        wire:model.live="endDate"
+                                        min="{{ $minAvailableDate }}"
+                                        max="{{ $maxAvailableDate }}"
+                                        class="rounded-xl border border-white/10 bg-black/60 px-3 py-2 text-sm text-white focus:border-lime-400/60 focus:outline-none focus:ring-2 focus:ring-lime-400/30"
+                                    >
+                                </label>
+                            </div>
+                            <div class="text-xs text-slate-500">
+                                {{ __('Zakres dat wpływa na wykres oraz listę pomiarów.') }}
+                            </div>
+                        </div>
+                        @if ($dateRangeError)
+                            <div class="mt-3 rounded-xl border border-rose-500/40 bg-rose-500/15 px-3 py-2 text-xs text-rose-100">
+                                {{ $dateRangeError }}
+                            </div>
+                        @endif
+                    </div>
+                @endif
+
                 <div class="h-64 w-full overflow-hidden rounded-2xl border border-white/10 bg-black/40">
-                    @if ($chart['path'])
-                        <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="h-full w-full">
-                            <defs>
-                                <linearGradient id="weightArea" x1="0" x2="0" y1="0" y2="1">
-                                    <stop offset="0%" stop-color="rgb(132 204 22)" stop-opacity="0.45" />
-                                    <stop offset="100%" stop-color="rgb(132 204 22)" stop-opacity="0.05" />
-                                </linearGradient>
-                            </defs>
-                            <path d="{{ $chart['path'] }}" fill="url(#weightArea)" stroke="none" />
-                            <path d="{{ $chart['line_path'] }}" fill="none" stroke="rgb(190 242 100)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                            @foreach ($chart['points'] as $point)
-                                <circle cx="{{ $point['x'] }}" cy="{{ $point['y'] }}" r="1.5" fill="rgb(190 242 100)" />
-                            @endforeach
-                        </svg>
+                    @if (! empty($chart['labels']))
+                        <div wire:ignore class="h-full w-full">
+                            <canvas id="weightChart" class="h-full w-full"></canvas>
+                        </div>
                     @else
-                        <div class="flex h-full items-center justify-center text-sm text-slate-500">
+                        <div class="flex h-full items-center justify-center px-4 text-center text-sm text-slate-500">
                             {{ __('Brak danych pomiarowych. Wczytaj eksport Apple Health, aby zobaczyć wykres.') }}
                         </div>
                     @endif
@@ -90,3 +117,165 @@
         </section>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+<script>
+    document.addEventListener('livewire:init', () => {
+        if (window.__weightChartInitialized) {
+            return;
+        }
+
+        window.__weightChartInitialized = true;
+
+        let weightChartInstance = null;
+
+        const renderWeightChart = (chart) => {
+            const canvas = document.getElementById('weightChart');
+
+            if (!canvas) {
+                if (weightChartInstance) {
+                    weightChartInstance.destroy();
+                    weightChartInstance = null;
+                }
+
+                return;
+            }
+
+            if (!chart || !Array.isArray(chart.labels) || chart.labels.length === 0 || !Array.isArray(chart.datasets) || chart.datasets.length === 0) {
+                if (weightChartInstance) {
+                    weightChartInstance.destroy();
+                    weightChartInstance = null;
+                }
+
+                return;
+            }
+
+            const context = canvas.getContext('2d');
+
+            if (!context) {
+                return;
+            }
+
+            const gradient = context.createLinearGradient(0, 0, 0, canvas.clientHeight || canvas.height || 0);
+            gradient.addColorStop(0, 'rgba(132, 204, 22, 0.45)');
+            gradient.addColorStop(1, 'rgba(132, 204, 22, 0.05)');
+
+            const datasets = chart.datasets.map((dataset) => ({
+                ...dataset,
+                backgroundColor: gradient,
+                borderColor: dataset.borderColor ?? 'rgb(190, 242, 100)',
+                pointBackgroundColor: dataset.pointBackgroundColor ?? 'rgb(190, 242, 100)',
+                pointBorderColor: dataset.pointBorderColor ?? 'rgb(15, 23, 42)',
+                pointHoverBackgroundColor: dataset.pointHoverBackgroundColor ?? '#ffffff',
+                pointHoverBorderColor: dataset.pointHoverBorderColor ?? 'rgba(15, 23, 42, 0.6)',
+            }));
+
+            const options = {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                layout: {
+                    padding: 16,
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: false,
+                        },
+                        ticks: {
+                            color: '#94a3b8',
+                            font: {
+                                family: 'Figtree, sans-serif',
+                                size: 11,
+                                weight: '500',
+                            },
+                        },
+                    },
+                    y: {
+                        grid: {
+                            color: 'rgba(148, 163, 184, 0.15)',
+                            drawBorder: false,
+                        },
+                        ticks: {
+                            color: '#94a3b8',
+                            font: {
+                                family: 'Figtree, sans-serif',
+                                size: 11,
+                                weight: '500',
+                            },
+                            callback(value) {
+                                return `${value} kg`;
+                            },
+                        },
+                    },
+                },
+                plugins: {
+                    legend: {
+                        display: false,
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                        borderColor: 'rgba(148, 163, 184, 0.25)',
+                        borderWidth: 1,
+                        padding: 12,
+                        titleColor: '#e2e8f0',
+                        bodyColor: '#f8fafc',
+                        displayColors: false,
+                        callbacks: {
+                            label(context) {
+                                const value = context.parsed.y ?? 0;
+
+                                return `${value.toLocaleString('pl-PL', {
+                                    minimumFractionDigits: 1,
+                                    maximumFractionDigits: 1,
+                                })} kg`;
+                            },
+                        },
+                    },
+                },
+                elements: {
+                    line: {
+                        tension: 0.35,
+                        borderWidth: 2,
+                        borderCapStyle: 'round',
+                    },
+                    point: {
+                        radius: 4,
+                        hoverRadius: 6,
+                        hitRadius: 12,
+                    },
+                },
+            };
+
+            if (!weightChartInstance) {
+                weightChartInstance = new Chart(context, {
+                    type: 'line',
+                    data: {
+                        labels: chart.labels,
+                        datasets,
+                    },
+                    options,
+                });
+
+                return;
+            }
+
+            weightChartInstance.data.labels = chart.labels;
+            weightChartInstance.data.datasets = datasets;
+            weightChartInstance.options = {
+                ...weightChartInstance.options,
+                ...options,
+            };
+            weightChartInstance.update('none');
+        };
+
+        Livewire.on('weight-chart-update', (chart) => {
+            renderWeightChart(chart);
+        });
+
+        renderWeightChart(@json([
+            'labels' => $chart['labels'],
+            'datasets' => $chart['datasets'],
+        ]));
+    });
+</script>

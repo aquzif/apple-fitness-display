@@ -23,6 +23,16 @@ class WeightDashboard extends Component
      */
     public array $chart = [];
 
+    public ?string $startDate = null;
+
+    public ?string $endDate = null;
+
+    public ?string $minAvailableDate = null;
+
+    public ?string $maxAvailableDate = null;
+
+    public ?string $dateRangeError = null;
+
     public function mount(): void
     {
         $user = Auth::user();
@@ -33,7 +43,74 @@ class WeightDashboard extends Component
             return;
         }
 
-        $weights = $user->weights()->orderByDesc('recorded_at')->get();
+        $minDate = $user->weights()->min('recorded_at');
+        $maxDate = $user->weights()->max('recorded_at');
+
+        $this->minAvailableDate = $minDate ? CarbonImmutable::parse($minDate)->toDateString() : null;
+        $this->maxAvailableDate = $maxDate ? CarbonImmutable::parse($maxDate)->toDateString() : null;
+
+        if ($this->startDate === null && $this->minAvailableDate) {
+            $this->startDate = $this->minAvailableDate;
+        }
+
+        if ($this->endDate === null && $this->maxAvailableDate) {
+            $this->endDate = $this->maxAvailableDate;
+        }
+
+        $this->reloadWeights();
+    }
+
+    public function render(): View
+    {
+        return view('livewire.weight-dashboard');
+    }
+
+    public function updatedStartDate(?string $value): void
+    {
+        $this->startDate = $value ?: null;
+        $this->reloadWeights();
+    }
+
+    public function updatedEndDate(?string $value): void
+    {
+        $this->endDate = $value ?: null;
+        $this->reloadWeights();
+    }
+
+    protected function reloadWeights(): void
+    {
+        $user = Auth::user();
+
+        if (! $user) {
+            $this->weights = [];
+            $this->chart = $this->emptyChart();
+            return;
+        }
+
+        [$start, $end, $invalid] = $this->normalizedDateRange();
+
+        if ($invalid) {
+            $this->weights = [];
+            $this->chart = $this->emptyChart();
+            $this->dispatch('weight-chart-update', chart: [
+                'labels' => [],
+                'datasets' => [],
+            ]);
+
+            return;
+        }
+
+        $query = $user->weights()->orderByDesc('recorded_at');
+
+        if ($start) {
+            $query->where('recorded_at', '>=', $start);
+        }
+
+        if ($end) {
+            $query->where('recorded_at', '<=', $end);
+        }
+
+        $weights = $query->get();
 
         $this->weights = $weights->map(fn (Weight $weight) => [
             'value' => $weight->value,
@@ -45,11 +122,11 @@ class WeightDashboard extends Component
         ])->all();
 
         $this->chart = $this->buildChart($weights->sortBy('recorded_at')->values());
-    }
 
-    public function render(): View
-    {
-        return view('livewire.weight-dashboard');
+        $this->dispatch('weight-chart-update', chart: [
+            'labels' => $this->chart['labels'],
+            'datasets' => $this->chart['datasets'],
+        ]);
     }
 
     protected function buildChart(Collection $weights): array
@@ -61,47 +138,29 @@ class WeightDashboard extends Component
         $values = $weights->pluck('value');
         $min = $values->min();
         $max = $values->max();
-        $range = max($max - $min, 0.1);
-        $count = max($weights->count(), 1);
+        $labels = $weights
+            ->map(fn (Weight $weight) => $weight->recorded_at?->locale(app()->getLocale())->isoFormat('DD.MM.YYYY'))
+            ->all();
 
-        $points = [];
-        foreach ($weights->values() as $index => $weight) {
-            $x = $count === 1 ? 0.0 : ($index / ($count - 1)) * 100;
-            $normalized = ($weight->value - $min) / $range;
-            $y = 100 - (($normalized * 80) + 10);
-            $points[] = [
-                'x' => round($x, 2),
-                'y' => round($y, 2),
-            ];
-        }
-
-        $path = '';
-        $linePath = '';
-        if ($points !== []) {
-            $segments = ['M ' . $this->formatPoint($points[0])];
-            foreach (array_slice($points, 1) as $point) {
-                $segments[] = 'L ' . $this->formatPoint($point);
-            }
-
-            $segments[] = 'L 100 100';
-            $segments[] = 'L 0 100';
-            $segments[] = 'Z';
-            $path = implode(' ', $segments);
-
-            $lineSegments = ['M ' . $this->formatPoint($points[0])];
-            foreach (array_slice($points, 1) as $point) {
-                $lineSegments[] = 'L ' . $this->formatPoint($point);
-            }
-            $linePath = implode(' ', $lineSegments);
-        }
+        $dataset = [
+            'label' => __('Masa ciała (kg)'),
+            'data' => $values->map(fn (float $value) => round($value, 1))->all(),
+            'borderColor' => 'rgb(190, 242, 100)',
+            'pointBackgroundColor' => 'rgb(190, 242, 100)',
+            'pointBorderColor' => 'rgb(15, 23, 42)',
+            'pointHoverRadius' => 6,
+            'pointRadius' => 4,
+            'fill' => true,
+            'tension' => 0.35,
+        ];
 
         $latest = $weights->last();
         $first = $weights->first();
         $difference = $latest && $first ? round($latest->value - $first->value, 1) : null;
 
         return [
-            'path' => $path,
-            'line_path' => $linePath,
+            'labels' => $labels,
+            'datasets' => [$dataset],
             'min' => round($min, 1),
             'max' => round($max, 1),
             'latest' => $latest ? round($latest->value, 1) : null,
@@ -109,26 +168,51 @@ class WeightDashboard extends Component
                 ? $latest->recorded_at->locale(app()->getLocale())->isoFormat('LL')
                 : null,
             'difference' => $difference,
-            'points' => $points,
         ];
     }
 
     protected function emptyChart(): array
     {
         return [
-            'path' => '',
-            'line_path' => '',
+            'labels' => [],
+            'datasets' => [],
             'min' => null,
             'max' => null,
             'latest' => null,
             'latest_at' => null,
             'difference' => null,
-            'points' => [],
         ];
     }
 
-    protected function formatPoint(array $point): string
+    protected function normalizedDateRange(): array
     {
-        return sprintf('%.2f %.2f', $point['x'], $point['y']);
+        $start = null;
+        $end = null;
+
+        try {
+            $start = $this->startDate ? CarbonImmutable::parse($this->startDate)->startOfDay() : null;
+        } catch (\Throwable) {
+            $this->dateRangeError = __('Nieprawidłowa data początkowa.');
+
+            return [null, null, true];
+        }
+
+        try {
+            $end = $this->endDate ? CarbonImmutable::parse($this->endDate)->endOfDay() : null;
+        } catch (\Throwable) {
+            $this->dateRangeError = __('Nieprawidłowa data końcowa.');
+
+            return [null, null, true];
+        }
+
+        if ($start && $end && $start->gt($end)) {
+            $this->dateRangeError = __('Data początkowa nie może być późniejsza niż końcowa.');
+
+            return [null, null, true];
+        }
+
+        $this->dateRangeError = null;
+
+        return [$start, $end, false];
     }
 }
