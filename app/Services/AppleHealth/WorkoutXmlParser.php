@@ -47,6 +47,57 @@ class WorkoutXmlParser
     }
 
     /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function parseBodyMassRecordsFromFile(string $path): array
+    {
+        $reader = new XMLReader();
+
+        if (! $reader->open($path, null, LIBXML_NONET | LIBXML_NOCDATA)) {
+            throw new \RuntimeException('Unable to open Apple Health export.');
+        }
+
+        $records = [];
+
+        try {
+            while ($reader->read()) {
+                if ($reader->nodeType !== XMLReader::ELEMENT || $reader->name !== 'Record') {
+                    continue;
+                }
+
+                $type = $reader->getAttribute('type');
+                if ($type !== 'HKQuantityTypeIdentifierBodyMass') {
+                    continue;
+                }
+
+                $records[] = $this->collectAttributes($reader);
+            }
+        } finally {
+            $reader->close();
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function collectAttributes(XMLReader $reader): array
+    {
+        $attributes = [];
+
+        if ($reader->moveToFirstAttribute()) {
+            do {
+                $attributes[$reader->name] = $reader->value;
+            } while ($reader->moveToNextAttribute());
+
+            $reader->moveToElement();
+        }
+
+        return $attributes;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     protected function convertElement(SimpleXMLElement $element): array

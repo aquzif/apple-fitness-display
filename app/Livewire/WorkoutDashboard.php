@@ -4,27 +4,17 @@ namespace App\Livewire;
 
 use App\Models\Workout;
 use App\Models\WorkoutImport;
-use App\Services\AppleHealth\WorkoutDataNormalizer;
-use App\Services\AppleHealth\WorkoutSummaryBuilder;
-use App\Services\AppleHealth\WorkoutXmlParser;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rules\File;
 use Livewire\Attributes\Layout as LivewireLayout;
-use Livewire\Attributes\Validate;
 use Livewire\Component;
-use Livewire\WithFileUploads;
 use NumberFormatter;
 
 #[LivewireLayout('layouts.app')]
 class WorkoutDashboard extends Component
 {
-    use WithFileUploads;
-
     public ?WorkoutImport $import = null;
 
     /**
@@ -40,8 +30,6 @@ class WorkoutDashboard extends Component
     public string $statusMessage = '';
 
     public string $filter = 'all';
-
-    public $upload = null;
 
     /**
      * @var array<string, mixed>
@@ -73,85 +61,6 @@ class WorkoutDashboard extends Component
     public function updatedFilter(string $value): void
     {
         $this->filter = $value;
-    }
-
-    public function handleUpload(): void
-    {
-        $this->validate([
-            'upload' => [
-                'required',
-            ],
-        ], [
-            'upload.required' => __('Wybierz plik exportu Apple Health.'),
-            'upload.mimetypes' => __('Obsługiwany jest wyłącznie plik XML.'),
-            'upload.mimes' => __('Obsługiwany jest wyłącznie plik XML.'),
-            'upload.max' => __('Plik jest zbyt duży (limit 10 GB).'),
-        ]);
-
-        $user = Auth::user();
-
-        if (! $user) {
-            return;
-        }
-
-        /** @var \Livewire\Features\SupportFileUploads\TemporaryUploadedFile $file */
-        $file = $this->upload;
-
-        $path = $file->store('apple-health');
-        $absolutePath = Storage::path($path);
-
-        $parser = app(WorkoutXmlParser::class);
-        $normalizer = new WorkoutDataNormalizer($this->workoutTypes, $this->defaultType);
-        $summaryBuilder = app(WorkoutSummaryBuilder::class);
-
-        try {
-            $rawWorkouts = $parser->parseWorkoutsFromFile($absolutePath);
-            $normalized = $normalizer->normalize($rawWorkouts);
-            $summary = $summaryBuilder->build($normalized);
-
-        } catch (\Throwable $exception) {
-            report($exception);
-            $this->statusMessage = __('Nie udało się przetworzyć pliku XML. Upewnij się, że to plik exportu Apple Health.');
-            $this->addError('upload', __('Nie udało się przetworzyć pliku XML.'));
-            Storage::delete($path);
-            return;
-        }
-
-        Storage::delete($path);
-
-        if ($normalized === []) {
-            $this->resetDashboard();
-            $this->statusMessage = __('Nie znaleziono treningów w tym eksporcie.');
-            $this->upload = null;
-            return;
-        }
-
-        DB::transaction(function () use ($user, $summary, $normalized, $file) {
-            $import = $user->workoutImports()->create([
-                'original_filename' => $file->getClientOriginalName(),
-                'total_count' => $summary['totalCount'],
-                'total_duration_seconds' => $summary['totalDurationSeconds'],
-                'total_energy' => $summary['totalEnergy'],
-                'total_energy_unit' => $summary['totalEnergyUnit'],
-                'total_burnt_energy' => $summary['totalBurntEnergy'],
-                'total_burnt_energy_unit' => $summary['totalBurntEnergyUnit'],
-                'total_distance' => $summary['totalDistance'],
-                'total_distance_unit' => $summary['totalDistanceUnit'],
-            ]);
-
-
-        $records = array_map(fn (array $workout) => $this->mapWorkoutForDatabase($workout), $normalized);
-            $import->workouts()->createMany($records);
-
-            $this->import = $import->load('workouts');
-        });
-
-        $this->upload = null;
-
-        $this->loadLatestImport();
-
-        $count = $this->summary['totalCount'] ?? 0;
-        $this->statusMessage = trans_choice('Załadowano :count trening.|Załadowano :count treningi.|Załadowano :count treningów.', $count, ['count' => $count]);
     }
 
     public function render(): View
@@ -217,7 +126,7 @@ class WorkoutDashboard extends Component
             'totalDistanceUnit' => 'km',
         ];
         $this->workouts = [];
-        $this->statusMessage = __('Załaduj plik exportu, aby zobaczyć listę treningów.');
+        $this->statusMessage = __('Przejdź do zakładki „Wprowadź dane” i załaduj plik exportu, aby zobaczyć listę treningów.');
     }
 
     protected function groupedWorkouts(): array
@@ -274,44 +183,6 @@ class WorkoutDashboard extends Component
                 default => $key === '' || ! str_contains($key, 'mind'),
             };
         }));
-    }
-
-    protected function mapWorkoutForDatabase(array $workout): array
-    {
-
-        $distance = is_array($workout['distance'] ?? null) ? $workout['distance'] : null;
-        $energy = is_array($workout['energy'] ?? null) ? $workout['energy'] : null;
-        $swim = is_array($workout['swim'] ?? null) ? $workout['swim'] : null;
-
-
-        $toReturn = [
-            'activity_key' => $workout['activityKey'] ?? null,
-            'label' => $workout['label'] ?? null,
-            'icon' => $workout['icon'] ?? null,
-            'icon_symbol' => $workout['iconSymbol'] ?? null,
-            'accent_color' => $workout['accentColor'] ?? null,
-            'icon_background' => $workout['iconBackground'] ?? null,
-            'start_date' => isset($workout['startDate']) ? $this->parseCarbon($workout['startDate']) : null,
-            'end_date' => isset($workout['endDate']) ? $this->parseCarbon($workout['endDate']) : null,
-            'duration_seconds' => $workout['durationSeconds'] ?? 0,
-            'duration_text' => $workout['durationText'] ?? null,
-            'distance_value' => $distance['value'] ?? null,
-            'distance_unit' => $distance['unit'] ?? null,
-            'energy_value' => $energy['value'] ?? null,
-            'energy_unit' => $energy['unit'] ?? null,
-            'swim_value' => $swim['value'] ?? null,
-            'swim_unit' => $swim['unit'] ?? null,
-            'metadata' => $workout['metadata'] ?? null,
-            'statistics' => $workout['statistics'] ?? null,
-            'events' => $workout['events'] ?? null,
-            'source_name' => $workout['sourceName'] ?? null,
-            'total_flights_climbed' => $workout['totalFlightsClimbed'] ?? null,
-            'total_elevation_gain' => $workout['totalElevationGain'] ?? null,
-            'total_elevation_gain_unit' => $workout['totalElevationGainUnit'] ?? null,
-        ];
-
-        //dd($toReturn,$workout);
-        return $toReturn;
     }
 
     /**
