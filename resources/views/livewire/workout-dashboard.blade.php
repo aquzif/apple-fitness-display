@@ -77,12 +77,12 @@
                 <span class="text-3xl font-semibold text-white">{{ $summaryView['duration'] }}</span>
             </div>
             <div class="flex flex-col gap-1">
-                <span class="text-xs uppercase tracking-wider text-slate-400">{{ __('Kalorie') }}</span>
-                <span class="text-3xl font-semibold text-white">{{ $summaryView['energy'] }}</span>
+                <span class="text-xs uppercase tracking-wider text-slate-400">{{ __('Spalone kalorie') }}</span>
+                <span class="text-3xl font-semibold text-white">{{ $summaryView['burntEnergy'] }}</span>
             </div>
             <div class="flex flex-col gap-1">
-                <span class="text-xs uppercase tracking-wider text-slate-400">{{ __('Dystans') }}</span>
-                <span class="text-3xl font-semibold text-white">{{ $summaryView['distance'] }}</span>
+                <span class="text-xs uppercase tracking-wider text-slate-400">{{ __('Wszystkie kalorie') }}</span>
+                <span class="text-3xl font-semibold text-white">{{ $summaryView['energy'] }}</span>
             </div>
         </section>
 
@@ -95,14 +95,59 @@
             @else
                 @foreach ($groupedWorkouts as $monthKey => $month)
                     <article class="space-y-6">
-                        <h2 class="text-xl font-semibold text-white">{{ $month['label'] }}</h2>
+                        <div class="flex flex-row gap-2 items-center" >
+                            <h2 class="text-xl font-semibold text-white">{{ $month['label'] }}</h2>
+                            @php
+                                $monthEnergy = 0;
+                                $monthBurntEnergy = 0;
+                                $monthDuration = 0;
 
+
+
+                                foreach ($month['days'] as $day) {
+                                    foreach ($day['items'] as $workout) {
+                                        $monthEnergy += \App\Utils\WorkoutUtils::getAllCalories($workout);
+                                        $monthBurntEnergy += \App\Utils\WorkoutUtils::getBurntCalories($workout);
+                                        $monthDuration += $workout['durationSeconds'] ?? 0;
+                                    }
+                                }
+
+                            @endphp
+
+                            <span class="rounded-full border border-gray-300/40 bg-gray-400/20 px-3 py-1 text-xs font-semibold text-gray-100">{{ $this->formatSummaryDuration($monthDuration) }}</span>
+                            <span class="rounded-full border border-orange-300/40 bg-orange-400/20 px-3 py-1 text-xs font-semibold text-orange-100">{{ $this->formatNumber($monthBurntEnergy) }} spalonych kcal</span>
+                            <span class="rounded-full border border-red-300/40 bg-red-400/20 px-3 py-1 text-xs font-semibold text-red-100">{{ $this->formatNumber($monthEnergy) }} kcal</span>
+                        </div>
                         <div class="space-y-6">
                             @foreach ($month['days'] as $day)
+
+                                @php
+                                    $dayEnergy = 0;
+                                    $dayBurntEnergy = 0;
+                                    $dayDuration = 0;
+
+
+
+                                    foreach ($day['items'] as $workout) {
+                                        $dayEnergy += \App\Utils\WorkoutUtils::getAllCalories($workout);
+                                        $dayBurntEnergy += \App\Utils\WorkoutUtils::getBurntCalories($workout);
+                                        $dayDuration += $workout['durationSeconds'] ?? 0;
+                                    }
+
+
+                                @endphp
+
                                 <div class="space-y-4">
                                     <header class="flex flex-wrap items-baseline justify-between gap-2 border-b border-white/10 pb-2 text-sm uppercase tracking-wide text-slate-400">
-                                        <span>{{ $day['label']['weekday'] }}</span>
+
+                                        <div>
+                                            <span>{{ $day['label']['weekday'] }}</span>
+                                            <span class="rounded-full lowercase border border-gray-300/40 bg-gray-400/20 px-3 py-1 text-xs font-semibold text-gray-100">{{ $this->formatSummaryDuration($dayDuration) }}</span>
+                                            <span class="rounded-full lowercase border border-orange-300/40 bg-orange-400/20 px-3 py-1 text-xs font-semibold text-orange-100">{{ $this->formatNumber($dayBurntEnergy) }} spalonych kcal</span>
+                                            <span class="rounded-full lowercase border border-red-300/40 bg-red-400/20 px-3 py-1 text-xs font-semibold text-red-100">{{ $this->formatNumber($dayEnergy) }} kcal</span>
+                                        </div>
                                         <span class="text-slate-500">{{ $day['label']['date'] }}</span>
+
                                     </header>
 
                                     <div class="grid gap-4 lg:grid-cols-2">
@@ -125,7 +170,7 @@
                                                         </div>
                                                         <div class="text-sm text-slate-400">
                                                             {{ collect([
-                                                                $workout['startDate'] ? \Carbon\CarbonImmutable::parse($workout['startDate'])->locale('pl')->translatedFormat('HH:mm') : null,
+                                                                $workout['startDate'] ? \Carbon\CarbonImmutable::parse($workout['startDate'])->locale(app()->getLocale())->isoFormat('LT') : null,
                                                                 $this->formatGoal($workout['metadata']['HKWorkoutGoalType'] ?? null) ?: null,
                                                                 $workout['sourceName'] ?? null,
                                                             ])->filter()->implode(' • ') }}
@@ -136,21 +181,27 @@
                                                                 !empty($workout['metadata']['HKIndoorWorkout']) ? __('Indoor') : null,
                                                                 $workout['totalFlightsClimbed'] ? $workout['totalFlightsClimbed'] . ' ' . __('pięter') : null,
                                                                 ($workout['totalElevationGain'] && $workout['totalElevationGainUnit']) ? __('Wzniesienie :value:unit', ['value' => $workout['totalElevationGain'], 'unit' => $workout['totalElevationGainUnit']]) : null,
-                                                                $workout['metadata']['HKWeatherCondition'] ? __('Pogoda: :weather', ['weather' => $workout['metadata']['HKWeatherCondition']]) : null,
+//                                                                $workout['metadata']['HKWeatherCondition'] ? __('Pogoda: :weather', ['weather' => $workout['metadata']['HKWeatherCondition']]) : null,
                                                             ])->filter();
                                                         @endphp
-                                                        @if ($details->isNotEmpty())
-                                                            <div class="text-xs uppercase tracking-wide text-slate-500">{{ $details->implode(' • ') }}</div>
-                                                        @endif
+
                                                     </div>
                                                     <div class="flex flex-wrap gap-2">
-                                                        <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white">{{ $workout['durationText'] ?? '0:00' }}</span>
-                                                        @if (!empty($workout['energy']['value']))
-                                                            <span class="rounded-full border border-orange-300/40 bg-orange-400/20 px-3 py-1 text-xs font-semibold text-orange-100">{{ $this->formatNumber($workout['energy']['value']) }} {{ $workout['energy']['unit'] ?? 'kcal' }}</span>
+
+                                                        @if (\App\Utils\WorkoutUtils::getBurntCalories($workout) > 0)
+                                                            <span class="rounded-full border border-orange-300/40 bg-orange-400/20 px-3 py-1 text-xs font-semibold text-orange-100">
+                                                                {{ $this->formatNumber(\App\Utils\WorkoutUtils::getBurntCalories($workout)) }} spalonych kcal
+                                                            </span>
+                                                        @endif
+                                                        @if (\App\Utils\WorkoutUtils::getAllCalories($workout) > 0)
+                                                            <span class="rounded-full border border-red-300/40 bg-red-400/20 px-3 py-1 text-xs font-semibold text-red-100">
+                                                                {{ $this->formatNumber(\App\Utils\WorkoutUtils::getAllCalories($workout)) }}  kcal
+                                                            </span>
                                                         @endif
                                                         @if (!empty($workout['distance']['value']))
                                                             <span class="rounded-full border border-sky-300/40 bg-sky-400/20 px-3 py-1 text-xs font-semibold text-sky-100">{{ $this->formatNumber($workout['distance']['value']) }} {{ $workout['distance']['unit'] ?? 'km' }}</span>
                                                         @endif
+
                                                     </div>
                                                 </div>
                                             </article>

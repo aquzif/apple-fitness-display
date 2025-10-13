@@ -2,6 +2,8 @@
 
 namespace App\Services\AppleHealth;
 
+use App\Utils\WorkoutUtils;
+
 class WorkoutSummaryBuilder
 {
     /**
@@ -13,6 +15,8 @@ class WorkoutSummaryBuilder
         if ($workouts === []) {
             return [
                 'totalCount' => 0,
+                'totalBurntEnergy' => 0.0,
+                'totalBurntEnergyUnit' => 'kcal',
                 'totalEnergy' => 0.0,
                 'totalEnergyUnit' => 'kcal',
                 'totalDurationSeconds' => 0,
@@ -24,10 +28,8 @@ class WorkoutSummaryBuilder
         return array_reduce($workouts, function (array $carry, array $workout) {
             $carry['totalCount'] += 1;
 
-            if (isset($workout['energy']['value'])) {
-                $carry['totalEnergy'] += (float) $workout['energy']['value'];
-                $carry['totalEnergyUnit'] = $workout['energy']['unit'] ?? $carry['totalEnergyUnit'];
-            }
+            $carry['totalEnergy'] += WorkoutUtils::getAllCalories($workout);
+            $carry['totalBurntEnergy'] += WorkoutUtils::getBurntCalories($workout);
 
             if (isset($workout['distance']['value'])) {
                 $carry['totalDistance'] += (float) $workout['distance']['value'];
@@ -39,6 +41,8 @@ class WorkoutSummaryBuilder
             return $carry;
         }, [
             'totalCount' => 0,
+            'totalBurntEnergy' => 0.0,
+            'totalBurntEnergyUnit' => 'kcal',
             'totalEnergy' => 0.0,
             'totalEnergyUnit' => 'kcal',
             'totalDurationSeconds' => 0,

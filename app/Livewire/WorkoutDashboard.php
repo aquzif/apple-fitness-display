@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\File;
 use Livewire\Attributes\Layout as LivewireLayout;
+use Livewire\Attributes\Validate;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use NumberFormatter;
@@ -79,7 +80,6 @@ class WorkoutDashboard extends Component
         $this->validate([
             'upload' => [
                 'required',
-                File::types(['xml'])->max(10_485_760), // ~10 GB in KB
             ],
         ], [
             'upload.required' => __('Wybierz plik exportu Apple Health.'),
@@ -108,6 +108,7 @@ class WorkoutDashboard extends Component
             $rawWorkouts = $parser->parseWorkoutsFromFile($absolutePath);
             $normalized = $normalizer->normalize($rawWorkouts);
             $summary = $summaryBuilder->build($normalized);
+
         } catch (\Throwable $exception) {
             report($exception);
             $this->statusMessage = __('Nie udało się przetworzyć pliku XML. Upewnij się, że to plik exportu Apple Health.');
@@ -132,9 +133,12 @@ class WorkoutDashboard extends Component
                 'total_duration_seconds' => $summary['totalDurationSeconds'],
                 'total_energy' => $summary['totalEnergy'],
                 'total_energy_unit' => $summary['totalEnergyUnit'],
+                'total_burnt_energy' => $summary['totalBurntEnergy'],
+                'total_burnt_energy_unit' => $summary['totalBurntEnergyUnit'],
                 'total_distance' => $summary['totalDistance'],
                 'total_distance_unit' => $summary['totalDistanceUnit'],
             ]);
+
 
         $records = array_map(fn (array $workout) => $this->mapWorkoutForDatabase($workout), $normalized);
             $import->workouts()->createMany($records);
@@ -152,12 +156,14 @@ class WorkoutDashboard extends Component
 
     public function render(): View
     {
+
         return view('livewire.workout-dashboard', [
             'groupedWorkouts' => $this->groupedWorkouts(),
             'summaryView' => [
                 'count' => $this->summary['totalCount'] ?? 0,
                 'duration' => $this->formatSummaryDuration($this->summary['totalDurationSeconds'] ?? 0),
                 'energy' => sprintf('%s %s', $this->formatNumber($this->summary['totalEnergy'] ?? 0), $this->summary['totalEnergyUnit'] ?? 'kcal'),
+                'burntEnergy' => sprintf('%s %s', $this->formatNumber($this->summary['totalBurntEnergy'] ?? 0), $this->summary['totalBurntEnergyUnit'] ?? 'kcal'),
                 'distance' => sprintf('%s %s', $this->formatNumber($this->summary['totalDistance'] ?? 0), $this->summary['totalDistanceUnit'] ?? 'km'),
             ],
         ]);
@@ -184,6 +190,8 @@ class WorkoutDashboard extends Component
             'totalDurationSeconds' => $import->total_duration_seconds,
             'totalEnergy' => (float) $import->total_energy,
             'totalEnergyUnit' => $import->total_energy_unit,
+            'totalBurntEnergy' => (float) $import->total_burnt_energy,
+            'totalBurntEnergyUnit' => $import->total_burnt_energy_unit,
             'totalDistance' => (float) $import->total_distance,
             'totalDistanceUnit' => $import->total_distance_unit,
         ];
@@ -223,7 +231,7 @@ class WorkoutDashboard extends Component
 
             if (! isset($groups[$monthKey])) {
                 $groups[$monthKey] = [
-                    'label' => $date ? $this->capitalize($date->locale('pl')->translatedFormat('LLLL Y')) : __('Bez daty'),
+                    'label' => $date ? $this->capitalize($date->locale('pl')->translatedFormat('F Y')) : __('Bez daty'),
                     'days' => [],
                 ];
             }
@@ -232,8 +240,8 @@ class WorkoutDashboard extends Component
             if (! isset($groups[$monthKey]['days'][$dayKey])) {
                 $groups[$monthKey]['days'][$dayKey] = [
                     'label' => [
-                        'weekday' => $date ? $this->capitalize($date->locale('pl')->translatedFormat('EEEE')) : __('Bez daty'),
-                        'date' => $date ? $date->locale('pl')->translatedFormat('d MMM') : '',
+                        'weekday' => $date ? $this->capitalize($date->locale('pl')->translatedFormat('l')) : __('Bez daty'),
+                        'date' => $date ? $date->locale('pl')->translatedFormat('d.m.Y') : __('Bez daty'),
                     ],
                     'items' => [],
                 ];
@@ -243,6 +251,8 @@ class WorkoutDashboard extends Component
         }
 
         krsort($groups);
+
+
 
         return array_map(function (array $month) {
             $days = $month['days'];
@@ -268,11 +278,13 @@ class WorkoutDashboard extends Component
 
     protected function mapWorkoutForDatabase(array $workout): array
     {
+
         $distance = is_array($workout['distance'] ?? null) ? $workout['distance'] : null;
         $energy = is_array($workout['energy'] ?? null) ? $workout['energy'] : null;
         $swim = is_array($workout['swim'] ?? null) ? $workout['swim'] : null;
 
-        return [
+
+        $toReturn = [
             'activity_key' => $workout['activityKey'] ?? null,
             'label' => $workout['label'] ?? null,
             'icon' => $workout['icon'] ?? null,
@@ -297,6 +309,9 @@ class WorkoutDashboard extends Component
             'total_elevation_gain' => $workout['totalElevationGain'] ?? null,
             'total_elevation_gain_unit' => $workout['totalElevationGainUnit'] ?? null,
         ];
+
+        //dd($toReturn,$workout);
+        return $toReturn;
     }
 
     /**
