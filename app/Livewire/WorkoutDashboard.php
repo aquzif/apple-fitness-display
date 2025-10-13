@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Workout;
 use App\Models\WorkoutImport;
+use App\Utils\WorkoutUtils;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -31,6 +32,16 @@ class WorkoutDashboard extends Component
 
     public string $filter = 'all';
 
+    public ?string $startDate = null;
+
+    public ?string $endDate = null;
+
+    public ?string $minAvailableDate = null;
+
+    public ?string $maxAvailableDate = null;
+
+    public ?string $dateRangeError = null;
+
     /**
      * @var array<string, mixed>
      */
@@ -47,6 +58,10 @@ class WorkoutDashboard extends Component
     protected array $iconAssets = [];
 
     protected ?NumberFormatter $numberFormatter = null;
+
+    protected ?CarbonImmutable $startDateBoundary = null;
+
+    protected ?CarbonImmutable $endDateBoundary = null;
 
     public function mount(): void
     {
@@ -66,15 +81,11 @@ class WorkoutDashboard extends Component
     public function render(): View
     {
 
+        $filtered = $this->filteredWorkouts();
+
         return view('livewire.workout-dashboard', [
-            'groupedWorkouts' => $this->groupedWorkouts(),
-            'summaryView' => [
-                'count' => $this->summary['totalCount'] ?? 0,
-                'duration' => $this->formatSummaryDuration($this->summary['totalDurationSeconds'] ?? 0),
-                'energy' => sprintf('%s %s', $this->formatNumber($this->summary['totalEnergy'] ?? 0), $this->summary['totalEnergyUnit'] ?? 'kcal'),
-                'burntEnergy' => sprintf('%s %s', $this->formatNumber($this->summary['totalBurntEnergy'] ?? 0), $this->summary['totalBurntEnergyUnit'] ?? 'kcal'),
-                'distance' => sprintf('%s %s', $this->formatNumber($this->summary['totalDistance'] ?? 0), $this->summary['totalDistanceUnit'] ?? 'km'),
-            ],
+            'groupedWorkouts' => $this->groupedWorkouts($filtered),
+            'summaryView' => $this->summaryForFiltered($filtered),
         ]);
     }
 
@@ -105,14 +116,49 @@ class WorkoutDashboard extends Component
             'totalDistanceUnit' => $import->total_distance_unit,
         ];
 
-        $this->workouts = $import->workouts
-            ->sortByDesc('start_date')
+        $workouts = $import->workouts->sortByDesc('start_date');
+
+        $dates = $workouts
+            ->pluck('start_date')
+            ->filter()
+            ->map(fn ($value) => $value instanceof CarbonImmutable ? $value : CarbonImmutable::parse($value));
+
+        if ($dates->isNotEmpty()) {
+            $minDate = $dates->min();
+            $maxDate = $dates->max();
+            $this->minAvailableDate = $minDate?->toDateString();
+            $this->maxAvailableDate = $maxDate?->toDateString();
+
+            if ($this->startDate === null && $this->minAvailableDate) {
+                $this->startDate = $this->minAvailableDate;
+            }
+
+            if ($this->endDate === null && $this->maxAvailableDate) {
+                $this->endDate = $this->maxAvailableDate;
+            }
+        }
+
+        $this->workouts = $workouts
             ->map(fn (Workout $workout) => $this->decorateWorkout($this->mapWorkoutForDisplay($workout->toArray())))
             ->values()
             ->all();
 
+        $this->updateDateRangeBoundaries();
+
         $count = $this->summary['totalCount'];
         $this->statusMessage = trans_choice('Załadowano :count trening.|Załadowano :count treningi.|Załadowano :count treningów.', $count, ['count' => $count]);
+    }
+
+    public function updatedStartDate(?string $value): void
+    {
+        $this->startDate = $value ?: null;
+        $this->updateDateRangeBoundaries();
+    }
+
+    public function updatedEndDate(?string $value): void
+    {
+        $this->endDate = $value ?: null;
+        $this->updateDateRangeBoundaries();
     }
 
     protected function resetDashboard(): void
@@ -127,11 +173,17 @@ class WorkoutDashboard extends Component
         ];
         $this->workouts = [];
         $this->statusMessage = __('Przejdź do zakładki „Wprowadź dane” i załaduj plik exportu, aby zobaczyć listę treningów.');
+        $this->startDate = null;
+        $this->endDate = null;
+        $this->minAvailableDate = null;
+        $this->maxAvailableDate = null;
+        $this->dateRangeError = null;
+        $this->startDateBoundary = null;
+        $this->endDateBoundary = null;
     }
 
-    protected function groupedWorkouts(): array
+    protected function groupedWorkouts(array $workouts): array
     {
-        $workouts = $this->filteredWorkouts();
         $groups = [];
 
         foreach ($workouts as $workout) {
@@ -173,8 +225,24 @@ class WorkoutDashboard extends Component
 
     protected function filteredWorkouts(): array
     {
+        if ($this->dateRangeError) {
+            return [];
+        }
+
         return array_values(array_filter($this->workouts, function (array $workout): bool {
             $key = strtolower((string) ($workout['activityKey'] ?? ''));
+            $startBoundary = $this->startDateBoundary;
+            $endBoundary = $this->endDateBoundary;
+
+            $date = isset($workout['startDate']) ? $this->parseCarbon($workout['startDate']) : null;
+
+            if ($startBoundary && $date && $date->lt($startBoundary)) {
+                return false;
+            }
+
+            if ($endBoundary && $date && $date->gt($endBoundary)) {
+                return false;
+            }
 
             return match ($this->filter) {
                 'mind' => str_contains($key, 'mind'),
@@ -236,6 +304,72 @@ class WorkoutDashboard extends Component
         $workout['accentColor'] = $type['accentColor'] ?? $workout['accentColor'] ?? $this->defaultType['accentColor'] ?? '#30d158';
 
         return $workout;
+    }
+
+    protected function updateDateRangeBoundaries(): void
+    {
+        $error = null;
+        $start = null;
+        $end = null;
+
+        if ($this->startDate) {
+            try {
+                $start = CarbonImmutable::parse($this->startDate)->startOfDay();
+            } catch (\Throwable) {
+                $error = __('Nieprawidłowa data początkowa.');
+            }
+        }
+
+        if ($this->endDate) {
+            try {
+                $end = CarbonImmutable::parse($this->endDate)->endOfDay();
+            } catch (\Throwable) {
+                $error ??= __('Nieprawidłowa data końcowa.');
+            }
+        }
+
+        if (! $error && $start && $end && $start->gt($end)) {
+            $error = __('Data początkowa nie może być późniejsza niż końcowa.');
+        }
+
+        $this->startDateBoundary = $start;
+        $this->endDateBoundary = $end;
+        $this->dateRangeError = $error;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $workouts
+     * @return array<string, string|int>
+     */
+    protected function summaryForFiltered(array $workouts): array
+    {
+        if ($this->dateRangeError) {
+            return [
+                'count' => 0,
+                'duration' => $this->formatSummaryDuration(0),
+                'energy' => sprintf('%s %s', $this->formatNumber(0), $this->summary['totalEnergyUnit'] ?? 'kcal'),
+                'burntEnergy' => sprintf('%s %s', $this->formatNumber(0), $this->summary['totalBurntEnergyUnit'] ?? 'kcal'),
+                'distance' => sprintf('%s %s', $this->formatNumber(0), $this->summary['totalDistanceUnit'] ?? 'km'),
+            ];
+        }
+
+        $totalDuration = 0;
+        $totalEnergy = 0.0;
+        $totalBurntEnergy = 0.0;
+
+        foreach ($workouts as $workout) {
+            $totalDuration += (int) ($workout['durationSeconds'] ?? 0);
+            $totalEnergy += WorkoutUtils::getAllCalories($workout);
+            $totalBurntEnergy += WorkoutUtils::getBurntCalories($workout);
+        }
+
+        return [
+            'count' => count($workouts),
+            'duration' => $this->formatSummaryDuration($totalDuration),
+            'energy' => sprintf('%s %s', $this->formatNumber($totalEnergy), $this->summary['totalEnergyUnit'] ?? 'kcal'),
+            'burntEnergy' => sprintf('%s %s', $this->formatNumber($totalBurntEnergy), $this->summary['totalBurntEnergyUnit'] ?? 'kcal'),
+            'distance' => sprintf('%s %s', $this->formatNumber($this->summary['totalDistance'] ?? 0), $this->summary['totalDistanceUnit'] ?? 'km'),
+        ];
     }
 
     protected function resolveSymbol(array $candidates): string
