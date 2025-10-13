@@ -39,11 +39,10 @@ class WorkoutImportForm extends Component
         $this->resetErrorBag();
 
         $this->validate([
-            'upload' => ['required'],
+            'upload' => ['required', 'file', 'mimes:xml,zip'],
         ], [
             'upload.required' => __('Wybierz plik exportu Apple Health.'),
-            'upload.mimetypes' => __('Obsługiwany jest wyłącznie plik XML.'),
-            'upload.mimes' => __('Obsługiwany jest wyłącznie plik XML.'),
+            'upload.mimes' => __('Obsługiwane są pliki XML lub ZIP zawierające plik export.xml.'),
             'upload.max' => __('Plik jest zbyt duży (limit 10 GB).'),
         ]);
 
