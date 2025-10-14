@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Models\User;
 use App\Models\Weight;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
@@ -48,6 +49,8 @@ class WeightDashboard extends Component
 
         $this->minAvailableDate = $minDate ? CarbonImmutable::parse($minDate)->toDateString() : null;
         $this->maxAvailableDate = $maxDate ? CarbonImmutable::parse($maxDate)->toDateString() : null;
+
+        $this->applySavedWeightFilters($user);
 
         if ($this->startDate === null && $this->minAvailableDate) {
             $this->startDate = $this->minAvailableDate;
@@ -99,6 +102,8 @@ class WeightDashboard extends Component
 
             return;
         }
+
+        $this->persistWeightDateFilters($start, $end);
 
         $query = $user->weights()->orderByDesc('recorded_at');
 
@@ -214,5 +219,90 @@ class WeightDashboard extends Component
         $this->dateRangeError = null;
 
         return [$start, $end, false];
+    }
+
+    protected function applySavedWeightFilters(User $user): void
+    {
+        $start = $this->clampDateWithinAvailableRange($user->weight_filter_start_date?->toDateString());
+        $end = $this->clampDateWithinAvailableRange($user->weight_filter_end_date?->toDateString());
+
+        if ($start && $end) {
+            try {
+                if (CarbonImmutable::parse($start)->gt(CarbonImmutable::parse($end))) {
+                    $end = $start;
+                }
+            } catch (\Throwable) {
+                $end = $start;
+            }
+        }
+
+        if ($start !== null) {
+            $this->startDate = $start;
+        }
+
+        if ($end !== null) {
+            $this->endDate = $end;
+        }
+    }
+
+    protected function clampDateWithinAvailableRange(?string $date): ?string
+    {
+        if ($date === null) {
+            return null;
+        }
+
+        try {
+            $value = CarbonImmutable::parse($date);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if ($this->minAvailableDate) {
+            try {
+                $min = CarbonImmutable::parse($this->minAvailableDate);
+                if ($value->lt($min)) {
+                    $value = $min;
+                }
+            } catch (\Throwable) {
+                // Ignore invalid minimum boundary
+            }
+        }
+
+        if ($this->maxAvailableDate) {
+            try {
+                $max = CarbonImmutable::parse($this->maxAvailableDate);
+                if ($value->gt($max)) {
+                    $value = $max;
+                }
+            } catch (\Throwable) {
+                // Ignore invalid maximum boundary
+            }
+        }
+
+        return $value->toDateString();
+    }
+
+    protected function persistWeightDateFilters(?CarbonImmutable $start, ?CarbonImmutable $end): void
+    {
+        $user = Auth::user();
+
+        if (! $user instanceof User) {
+            return;
+        }
+
+        $startDate = $start?->toDateString();
+        $endDate = $end?->toDateString();
+
+        $currentStart = $user->weight_filter_start_date?->toDateString();
+        $currentEnd = $user->weight_filter_end_date?->toDateString();
+
+        if ($currentStart === $startDate && $currentEnd === $endDate) {
+            return;
+        }
+
+        $user->forceFill([
+            'weight_filter_start_date' => $startDate,
+            'weight_filter_end_date' => $endDate,
+        ])->save();
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Models\User;
 use App\Models\Workout;
 use App\Models\WorkoutImport;
 use App\Utils\WorkoutUtils;
@@ -128,6 +129,8 @@ class WorkoutDashboard extends Component
             $maxDate = $dates->max();
             $this->minAvailableDate = $minDate?->toDateString();
             $this->maxAvailableDate = $maxDate?->toDateString();
+
+            $this->applySavedWorkoutFilters($user);
 
             if ($this->startDate === null && $this->minAvailableDate) {
                 $this->startDate = $this->minAvailableDate;
@@ -335,6 +338,10 @@ class WorkoutDashboard extends Component
         $this->startDateBoundary = $start;
         $this->endDateBoundary = $end;
         $this->dateRangeError = $error;
+
+        if (! $error) {
+            $this->persistWorkoutDateFilters();
+        }
     }
 
     /**
@@ -407,6 +414,91 @@ class WorkoutDashboard extends Component
             'value' => (float) $value,
             'unit' => $unit ?: null,
         ];
+    }
+
+    protected function applySavedWorkoutFilters(User $user): void
+    {
+        $start = $this->clampDateStringToAvailableRange($user->workout_filter_start_date?->toDateString());
+        $end = $this->clampDateStringToAvailableRange($user->workout_filter_end_date?->toDateString());
+
+        if ($start && $end) {
+            try {
+                if (CarbonImmutable::parse($start)->gt(CarbonImmutable::parse($end))) {
+                    $end = $start;
+                }
+            } catch (\Throwable) {
+                $end = $start;
+            }
+        }
+
+        if ($start !== null) {
+            $this->startDate = $start;
+        }
+
+        if ($end !== null) {
+            $this->endDate = $end;
+        }
+    }
+
+    protected function clampDateStringToAvailableRange(?string $date): ?string
+    {
+        if ($date === null) {
+            return null;
+        }
+
+        try {
+            $value = CarbonImmutable::parse($date);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if ($this->minAvailableDate) {
+            try {
+                $min = CarbonImmutable::parse($this->minAvailableDate);
+                if ($value->lt($min)) {
+                    $value = $min;
+                }
+            } catch (\Throwable) {
+                // Ignore invalid minimum boundary
+            }
+        }
+
+        if ($this->maxAvailableDate) {
+            try {
+                $max = CarbonImmutable::parse($this->maxAvailableDate);
+                if ($value->gt($max)) {
+                    $value = $max;
+                }
+            } catch (\Throwable) {
+                // Ignore invalid maximum boundary
+            }
+        }
+
+        return $value->toDateString();
+    }
+
+    protected function persistWorkoutDateFilters(): void
+    {
+        $user = Auth::user();
+
+        if (! $user instanceof User) {
+            return;
+        }
+
+        $start = $this->startDateBoundary?->toDateString();
+        $end = $this->endDateBoundary?->toDateString();
+
+        $currentStart = $user->workout_filter_start_date?->toDateString();
+        $currentEnd = $user->workout_filter_end_date?->toDateString();
+
+        if ($currentStart === $start && $currentEnd === $end) {
+            return;
+        }
+
+        $user->forceFill([
+            'workout_filter_start_date' => $start,
+            'workout_filter_end_date' => $end,
+        ])->save();
     }
 
     public function formatNumber(float $value): string

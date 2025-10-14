@@ -44,6 +44,10 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'workout_filter_start_date' => 'immutable_date',
+            'workout_filter_end_date' => 'immutable_date',
+            'weight_filter_start_date' => 'immutable_date',
+            'weight_filter_end_date' => 'immutable_date',
         ];
     }
 
