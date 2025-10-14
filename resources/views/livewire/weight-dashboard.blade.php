@@ -102,9 +102,9 @@
                                 @if ($weight['source_name'])
                                     <div>{{ $weight['source_name'] }}</div>
                                 @endif
-                                @if ($weight['device'])
+                                {{--@if ($weight['device'])
                                     <div>{{ $weight['device'] }}</div>
-                                @endif
+                                @endif--}}
                             </div>
                         </li>
                     @empty

@@ -12,7 +12,7 @@
             <div class="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 bg-gradient-to-br from-white/10 to-white/5 p-6 backdrop-blur">
                 <form wire:submit.prevent="handleUpload" class="flex flex-col gap-4 lg:flex-row lg:items-center">
                     <label class="flex flex-1 cursor-pointer items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-lime-300/50 hover:bg-white/10">
-                        <input type="file" class="hidden" wire:model.live="upload" accept=".xml" />
+                        <input type="file" class="hidden" wire:model.live="upload" />
                         <div class="flex h-16 w-16 flex-none items-center justify-center rounded-2xl bg-white/5">
                             <svg class="h-10 w-10 text-lime-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M7.5 9l4.5-4.5m0 0L16.5 9m-4.5-4.5V15" />
