@@ -102,7 +102,7 @@
             @else
                 @foreach ($groupedWorkouts as $monthKey => $month)
                     <article class="space-y-6">
-                        <div class="flex flex-row gap-2 items-center" >
+                        <div class="flex flex-col md:flex-row gap-2 items-center" >
                             <h2 class="text-xl font-semibold text-white">{{ $month['label'] }}</h2>
                             @php
                                 $monthEnergy = 0;
@@ -121,9 +121,11 @@
 
                             @endphp
 
-                            <span class="rounded-full border border-gray-300/40 bg-gray-400/20 px-3 py-1 text-xs font-semibold text-gray-100">{{ $this->formatSummaryDuration($monthDuration) }}</span>
-                            <span class="rounded-full border border-orange-300/40 bg-orange-400/20 px-3 py-1 text-xs font-semibold text-orange-100">{{ $this->formatNumber($monthBurntEnergy) }} spalonych kcal</span>
-                            <span class="rounded-full border border-red-300/40 bg-red-400/20 px-3 py-1 text-xs font-semibold text-red-100">{{ $this->formatNumber($monthEnergy) }} kcal</span>
+                            <div>
+                                <span class="rounded-full border border-gray-300/40 bg-gray-400/20 px-3 py-1 text-xs font-semibold text-gray-100">{{ $this->formatSummaryDuration($monthDuration) }}</span>
+                                <span class="rounded-full border border-orange-300/40 bg-orange-400/20 px-3 py-1 text-xs font-semibold text-orange-100">{{ $this->formatNumber($monthBurntEnergy) }} spal. kcal</span>
+                                <span class="rounded-full border border-red-300/40 bg-red-400/20 px-3 py-1 text-xs font-semibold text-red-100">{{ $this->formatNumber($monthEnergy) }} kcal</span>
+                            </div>
                         </div>
                         <div class="space-y-6">
                             @foreach ($month['days'] as $day)
@@ -147,11 +149,13 @@
                                 <div class="space-y-4">
                                     <header class="flex flex-wrap items-baseline justify-between gap-2 border-b border-white/10 pb-2 text-sm uppercase tracking-wide text-slate-400">
 
-                                        <div>
+                                        <div class="flex md:flex-row flex-col gap-2" >
                                             <span>{{ $day['label']['weekday'] }}</span>
-                                            <span class="rounded-full lowercase border border-gray-300/40 bg-gray-400/20 px-3 py-1 text-xs font-semibold text-gray-100">{{ $this->formatSummaryDuration($dayDuration) }}</span>
-                                            <span class="rounded-full lowercase border border-orange-300/40 bg-orange-400/20 px-3 py-1 text-xs font-semibold text-orange-100">{{ $this->formatNumber($dayBurntEnergy) }} spalonych kcal</span>
-                                            <span class="rounded-full lowercase border border-red-300/40 bg-red-400/20 px-3 py-1 text-xs font-semibold text-red-100">{{ $this->formatNumber($dayEnergy) }} kcal</span>
+                                            <div class="flex flex-row items-center" >
+                                                <span class="rounded-full lowercase border border-gray-300/40 bg-gray-400/20 px-3 py-1 text-xs font-semibold text-gray-100">{{ $this->formatSummaryDuration($dayDuration) }}</span>
+                                                <span class="rounded-full lowercase border border-orange-300/40 bg-orange-400/20 px-3 py-1 text-xs font-semibold text-orange-100">{{ $this->formatNumber($dayBurntEnergy) }} spal. kcal</span>
+                                                <span class="rounded-full lowercase border border-red-300/40 bg-red-400/20 px-3 py-1 text-xs font-semibold text-red-100">{{ $this->formatNumber($dayEnergy) }} kcal</span>
+                                            </div>
                                         </div>
                                         <span class="text-slate-500">{{ $day['label']['date'] }}</span>
 
@@ -197,7 +201,7 @@
 
                                                         @if (\App\Utils\WorkoutUtils::getBurntCalories($workout) > 0)
                                                             <span class="rounded-full border border-orange-300/40 bg-orange-400/20 px-3 py-1 text-xs font-semibold text-orange-100">
-                                                                {{ $this->formatNumber(\App\Utils\WorkoutUtils::getBurntCalories($workout)) }} spalonych kcal
+                                                                {{ $this->formatNumber(\App\Utils\WorkoutUtils::getBurntCalories($workout)) }} spal. kcal
                                                             </span>
                                                         @endif
                                                         @if (\App\Utils\WorkoutUtils::getAllCalories($workout) > 0)
