@@ -165,8 +165,8 @@
                                         @foreach ($day['items'] as $workout)
                                             <article class="flex gap-4 rounded-3xl border border-white/5 bg-white/5 p-4 transition hover:border-white/20">
                                                 <div class="flex h-20 w-20 flex-none items-center justify-center rounded-2xl" style="background: {{ $workout['iconBackground'] }};">
-                                                    @if ($workout['iconUri'])
-                                                        <img src="{{ $workout['iconUri'] }}" alt="" class="h-12 w-12" loading="lazy" decoding="async" />
+                                                    @if ($workout['symbol'])
+                                                        <img src="/icons/{{ $workout['symbol'] }}" alt="" class="h-12 w-12" loading="lazy" decoding="async" />
                                                     @else
                                                         <div class="text-3xl">{{ $workout['icon'] ?? '💪' }}</div>
                                                     @endif

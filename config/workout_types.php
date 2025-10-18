@@ -131,7 +131,7 @@ return [
         'HKWorkoutActivityTypeCycling' => [
             'label' => 'Cycling',
             'icon' => '🚴',
-            'iconSymbol' => 'wind',
+            'iconSymbol' => 'figure.outdoor.cycle.svg',
             'accentColor' => '#ffd60a',
             'iconBackground' => 'rgba(255, 214, 10, 0.18)'
         ],
@@ -194,7 +194,7 @@ return [
         'HKWorkoutActivityTypeFitnessGaming' => [
             'label' => 'Fitness Gaming',
             'icon' => '🎮',
-            'iconSymbol' => 'gamecontroller.fill',
+            'iconSymbol' => 'gamecontroller.fill.svg',
             'accentColor' => '#30d158',
             'iconBackground' => 'rgba(48, 209, 88, 0.18)'
         ],
@@ -544,7 +544,7 @@ return [
         'HKWorkoutActivityTypeWalking' => [
             'label' => 'Walking',
             'icon' => '🚶',
-            'iconSymbol' => 'tortoise.fill',
+            'iconSymbol' => 'figure.walk.svg',
             'accentColor' => '#30d158',
             'iconBackground' => 'rgba(48, 209, 88, 0.18)'
         ],
