@@ -335,6 +335,8 @@ class WorkoutDashboard extends Component
             $error = __('Data początkowa nie może być późniejsza niż końcowa.');
         }
 
+
+
         $this->startDateBoundary = $start;
         $this->endDateBoundary = $end;
         $this->dateRangeError = $error;
@@ -452,6 +454,8 @@ class WorkoutDashboard extends Component
             return null;
         }
 
+        return $value->toDateString();
+
         if ($this->minAvailableDate) {
             try {
                 $min = CarbonImmutable::parse($this->minAvailableDate);
@@ -488,17 +492,22 @@ class WorkoutDashboard extends Component
         $start = $this->startDateBoundary?->toDateString();
         $end = $this->endDateBoundary?->toDateString();
 
+
         $currentStart = $user->workout_filter_start_date?->toDateString();
         $currentEnd = $user->workout_filter_end_date?->toDateString();
+
+
+
 
         if ($currentStart === $start && $currentEnd === $end) {
             return;
         }
 
-        $user->forceFill([
+
+        $user->update([
             'workout_filter_start_date' => $start,
             'workout_filter_end_date' => $end,
-        ])->save();
+        ]);
     }
 
     public function formatNumber(float $value): string

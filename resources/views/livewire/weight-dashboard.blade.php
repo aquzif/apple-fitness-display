@@ -1,5 +1,5 @@
 <div class="min-h-screen bg-black text-slate-100">
-    <div class="mx-auto flex max-w-5xl flex-col gap-10 px-4 pb-16 pt-10 sm:px-6 lg:px-8">
+    <div class="mx-auto flex max-w-7xl flex-col gap-10 px-4 pb-16 pt-10 sm:px-6 lg:px-8">
         <header class="flex flex-col gap-3">
             <div class="text-sm font-medium uppercase tracking-[0.3em] text-slate-500">Body</div>
             <h1 class="text-4xl font-semibold tracking-tight text-white sm:text-5xl">{{ __('Waga') }}</h1>
@@ -8,8 +8,8 @@
             </p>
         </header>
 
-        <section class="grid gap-6 lg:grid-cols-5">
-            <div class="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur lg:col-span-3">
+        <section class="grid gap-6 lg:grid-cols-12">
+            <div class="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur xl:col-span-6 md:col-span-12">
                 <header class="flex flex-wrap items-baseline justify-between gap-4">
                     <div>
                         <h2 class="text-xl font-semibold text-white">{{ __('Trend wagi') }}</h2>
@@ -89,9 +89,9 @@
                 </footer>
             </div>
 
-            <div class="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur lg:col-span-2">
+            <div class="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur xl:col-span-3  md:col-span-6">
                 <h2 class="text-xl font-semibold text-white">{{ __('Ostatnie pomiary') }}</h2>
-                <ul class="space-y-3 max-h-64 overflow-y-auto pr-2">
+                <ul class="space-y-3 max-h-64 lg:max-h-[500px]  overflow-y-auto pr-2">
                     @forelse ($weights as $weight)
                         <li class="flex items-start justify-between rounded-2xl border border-white/5 bg-black/40 p-4">
                             <div>
@@ -114,163 +114,49 @@
                     @endforelse
                 </ul>
             </div>
+            <div class="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur xl:col-span-3  md:col-span-6">
+                <h2 class="text-xl font-semibold text-white">{{ __('Zmiana wagi') }}</h2>
+                <ul class="space-y-3 max-h-64 lg:max-h-[500px]  overflow-y-auto pr-2">
+                    @forelse ($minWeightsByWeek as $weight)
+{{--                        @dd($weight)--}}
+                        <li class="flex items-start justify-between rounded-2xl border border-white/5 bg-black/40 p-4">
+                            <div>
+                                <div class="text-lg font-semibold text-white">
+                                    {{ number_format($weight['min_weight'], 1, ',', ' ') }}
+                                    <span
+                                        class="
+                                        text-sm
+                                        {{ $weight['change_from_previous_week'] > 0 ? 'text-rose-300' : '' }}
+                                        {{ $weight['change_from_previous_week'] < 0 ? 'text-emerald-300' : '' }}
+                                        "
+                                    >({{ number_format($weight['change_from_previous_week'], 1, ',', ' ') }})</span>
+                                </div>
+                                <div class="text-xs text-slate-500">{{ $weight['week_start'] }} - {{ $weight['week_end']  }}</div>
+                            </div>
+                        </li>
+                        {{--<li class="flex items-start justify-between rounded-2xl border border-white/5 bg-black/40 p-4">
+                            <div>
+                                <div class="text-lg font-semibold text-white">{{ number_format($weight['value'], 1, ',', ' ') }} {{ $weight['unit'] }}</div>
+                                <div class="text-xs text-slate-500">{{ $weight['recorded_for_humans'] }}</div>
+                            </div>
+                            <div class="text-xs text-right text-slate-500">
+                                @if ($weight['source_name'])
+                                    <div>{{ $weight['source_name'] }}</div>
+                                @endif
+                                --}}{{--@if ($weight['device'])
+                                    <div>{{ $weight['device'] }}</div>
+                                @endif--}}{{--
+                            </div>
+                        </li>--}}
+                    @empty
+                        <li class="rounded-2xl border border-dashed border-white/10 bg-black/40 p-6 text-center text-sm text-slate-500">
+                            {{ __('Brak pomiarów wagi. Wczytaj dane z pliku XML.') }}
+                        </li>
+                    @endforelse
+                </ul>
+            </div>
         </section>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" crossorigin="anonymous"></script>
-<script>
-    document.addEventListener('livewire:init', () => {
-        if (window.__weightChartInitialized) {
-            return;
-        }
 
-        window.__weightChartInitialized = true;
-
-        let weightChartInstance = null;
-
-        const destroyChart = () => {
-            if (weightChartInstance) {
-                weightChartInstance.destroy();
-                weightChartInstance = null;
-            }
-        };
-
-        const renderWeightChart = (payload) => {
-            const chart = payload?.chart ?? payload;
-            const canvas = document.getElementById('weightChart');
-
-            if (!canvas || !chart || !Array.isArray(chart.labels) || chart.labels.length === 0) {
-                destroyChart();
-
-                return;
-            }
-
-            const datasets = Array.isArray(chart.datasets) ? chart.datasets : [];
-
-            if (datasets.length === 0) {
-                destroyChart();
-
-                return;
-            }
-
-            const context = canvas.getContext('2d');
-
-            if (!context) {
-                destroyChart();
-
-                return;
-            }
-
-            destroyChart();
-
-            const gradient = context.createLinearGradient(0, 0, 0, canvas.clientHeight || canvas.height || 0);
-            gradient.addColorStop(0, 'rgba(132, 204, 22, 0.45)');
-            gradient.addColorStop(1, 'rgba(132, 204, 22, 0.05)');
-
-            const chartDatasets = datasets.map((dataset) => ({
-                ...dataset,
-                data: Array.isArray(dataset.data)
-                    ? dataset.data.map((value) => (typeof value === 'number' ? value : Number(value)))
-                    : [],
-                backgroundColor: gradient,
-                borderColor: dataset.borderColor ?? 'rgb(190, 242, 100)',
-                pointBackgroundColor: dataset.pointBackgroundColor ?? 'rgb(190, 242, 100)',
-                pointBorderColor: dataset.pointBorderColor ?? 'rgb(15, 23, 42)',
-                pointHoverBackgroundColor: dataset.pointHoverBackgroundColor ?? '#ffffff',
-                pointHoverBorderColor: dataset.pointHoverBorderColor ?? 'rgba(15, 23, 42, 0.6)',
-                fill: true,
-            }));
-
-            weightChartInstance = new Chart(context, {
-                type: 'line',
-                data: {
-                    labels: chart.labels,
-                    datasets: chartDatasets,
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: false,
-                    layout: {
-                        padding: 16,
-                    },
-                    scales: {
-                        x: {
-                            grid: {
-                                display: false,
-                            },
-                            ticks: {
-                                color: '#94a3b8',
-                                font: {
-                                    family: 'Figtree, sans-serif',
-                                    size: 11,
-                                    weight: '500',
-                                },
-                            },
-                        },
-                        y: {
-                            grid: {
-                                color: 'rgba(148, 163, 184, 0.15)',
-                                drawBorder: false,
-                            },
-                            ticks: {
-                                color: '#94a3b8',
-                                font: {
-                                    family: 'Figtree, sans-serif',
-                                    size: 11,
-                                    weight: '500',
-                                },
-                                callback(value) {
-                                    return `${value} kg`;
-                                },
-                            },
-                        },
-                    },
-                    plugins: {
-                        legend: {
-                            display: false,
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                            borderColor: 'rgba(148, 163, 184, 0.25)',
-                            borderWidth: 1,
-                            padding: 12,
-                            titleColor: '#e2e8f0',
-                            bodyColor: '#f8fafc',
-                            displayColors: false,
-                            callbacks: {
-                                label(context) {
-                                    const value = context.parsed.y ?? 0;
-
-                                    return `${value.toLocaleString('pl-PL', {
-                                        minimumFractionDigits: 1,
-                                        maximumFractionDigits: 1,
-                                    })} kg`;
-                                },
-                            },
-                        },
-                    },
-                    elements: {
-                        line: {
-                            tension: 0.35,
-                            borderWidth: 2,
-                            borderCapStyle: 'round',
-                        },
-                        point: {
-                            radius: 4,
-                            hoverRadius: 6,
-                            hitRadius: 12,
-                        },
-                    },
-                },
-            });
-        };
-
-        Livewire.on('weight-chart-update', (chart) => {
-            renderWeightChart(chart);
-        });
-
-        renderWeightChart(@json($chart));
-    });
-</script>

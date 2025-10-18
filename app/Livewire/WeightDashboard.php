@@ -18,6 +18,7 @@ class WeightDashboard extends Component
      * @var array<int, array<string, mixed>>
      */
     public array $weights = [];
+    public array $minWeightsByWeek = [];
 
     /**
      * @var array<string, mixed>
@@ -132,6 +133,57 @@ class WeightDashboard extends Component
             'labels' => $this->chart['labels'],
             'datasets' => $this->chart['datasets'],
         ]);
+
+        // Build minimum weights by week
+        // find lowest weight for each week in the selected date range
+        // array item will be array as follows:
+        // [
+        //   'week_start' => '2024-01-01',
+        //   'week_end' => '2024-01-07',
+        //   'min_weight' => 70.5,
+        //   'change_from_previous_week' => -0.5,
+        // ]
+
+        //sort weights by recorded_at ascending
+        $weights = $weights->sortBy('recorded_at')->values();
+
+        $this->minWeightsByWeek = [];
+        $weeks = [];
+
+        foreach ($weights as $weight) {
+            $weekStart = $weight->recorded_at?->startOfWeek()->toDateString();
+            $weekEnd = $weight->recorded_at?->endOfWeek()->toDateString();
+
+            if (! isset($weeks[$weekStart])) {
+                $weeks[$weekStart] = [
+                    'week_start' => $weekStart,
+                    'week_end' => $weekEnd,
+                    'min_weight' => $weight->value,
+                ];
+            } else {
+                if ($weight->value < $weeks[$weekStart]['min_weight']) {
+                    $weeks[$weekStart]['min_weight'] = $weight->value;
+                }
+            }
+        }
+
+        // Calculate change from previous week
+        $previousMin = null;
+        foreach ($weeks as $week) {
+            $change = null;
+            if ($previousMin !== null) {
+                $change = round($week['min_weight'] - $previousMin, 1);
+            }
+            $week['change_from_previous_week'] = $change;
+            $this->minWeightsByWeek[] = $week;
+            $previousMin = $week['min_weight'];
+        }
+
+        //change order in minWeidhtsByWeek to descending by week_start
+        $this->minWeightsByWeek = array_reverse($this->minWeightsByWeek);
+
+
+
     }
 
     protected function buildChart(Collection $weights): array
@@ -256,6 +308,8 @@ class WeightDashboard extends Component
         } catch (\Throwable) {
             return null;
         }
+
+        return $value->toDateString();
 
         if ($this->minAvailableDate) {
             try {

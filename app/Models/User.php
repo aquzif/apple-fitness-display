@@ -22,6 +22,10 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'workout_filter_start_date',
+        'workout_filter_end_date',
+        'weight_filter_start_date',
+        'weight_filter_end_date',
     ];
 
     /**
