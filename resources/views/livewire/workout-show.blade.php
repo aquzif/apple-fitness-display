@@ -213,7 +213,7 @@
                                             <div
                                                 class="pointer-events-none absolute -top-2 z-10 flex -translate-y-3 scale-95 transform flex-col items-center opacity-0 transition duration-150 ease-out group-focus-visible:-translate-y-full group-focus-visible:scale-100 group-focus-visible:opacity-100 group-hover:-translate-y-full group-hover:scale-100 group-hover:opacity-100"
                                             >
-                                                <div class="rounded-lg bg-black/80 px-3 py-2 text-xs font-medium text-white shadow-xl">
+                                                <div class="rounded-lg absolute bg-black/80 px-3 w-36 py-2 text-xs font-medium text-white shadow-xl">
                                                     {{ $tooltipText }}
                                                 </div>
                                                 <div class="h-2 w-px bg-black/60"></div>
@@ -251,7 +251,7 @@
                                         'min' => $entry['min'] ?? '—',
                                         'max' => $entry['max'] ?? '—',
                                         'count' => $entry['samples'],
-                                    ]) }}
+                                    ]) }}asdasd
                                 </li>
                             @endforeach
                         </ul>
