@@ -191,8 +191,34 @@
                                         $minPct = max(0, min(100, $globalMax !== null ? (($minValue - $baseline) / $range) * 100 : 0));
                                         $maxPct = max(0, min(100, $globalMax !== null ? (($maxValue - $baseline) / $range) * 100 : 0));
                                         $showLabel = $index === 0 || $index === $totalEntries - 1 || $index % 5 === 0;
+                                        $minuteLabel = $minute?->locale(app()->getLocale())->isoFormat('HH:mm');
+                                        $tooltipText = implode(' • ',
+                                            array_filter([
+                                                $minuteLabel,
+                                                ($entry['min'] !== null && $entry['max'] !== null)
+                                                    ? __(':min–:max bpm', ['min' => $entry['min'], 'max' => $entry['max']])
+                                                    : null,
+                                                $entry['samples']
+                                                    ? trans_choice('1 próbka|:count próbki|:count próbek', $entry['samples'], ['count' => $entry['samples']])
+                                                    : null,
+                                            ], fn ($value) => ! is_null($value) && $value !== '')
+                                        );
                                     @endphp
-                                    <div class="flex flex-1 flex-col items-center">
+                                    <div
+                                        class="group relative flex flex-1 flex-col items-center focus:outline-none"
+                                        tabindex="0"
+                                        @if ($tooltipText !== '') aria-label="{{ $tooltipText }}" @endif
+                                    >
+                                        @if ($tooltipText !== '')
+                                            <div
+                                                class="pointer-events-none absolute -top-2 z-10 flex -translate-y-3 scale-95 transform flex-col items-center opacity-0 transition duration-150 ease-out group-focus-visible:-translate-y-full group-focus-visible:scale-100 group-focus-visible:opacity-100 group-hover:-translate-y-full group-hover:scale-100 group-hover:opacity-100"
+                                            >
+                                                <div class="rounded-lg bg-black/80 px-3 py-2 text-xs font-medium text-white shadow-xl">
+                                                    {{ $tooltipText }}
+                                                </div>
+                                                <div class="h-2 w-px bg-black/60"></div>
+                                            </div>
+                                        @endif
                                         <div class="relative h-52 w-full">
                                             <span
                                                 class="absolute left-1/2 w-2 -translate-x-1/2 rounded-full bg-emerald-400/80"
@@ -210,7 +236,7 @@
                                             ></span>
                                         </div>
                                         <div class="mt-2 text-center text-[10px] uppercase tracking-[0.2em] text-slate-500">
-                                            {{ $showLabel ? $minute?->locale(app()->getLocale())->isoFormat('HH:mm') : '·' }}
+                                            {{ $showLabel ? $minuteLabel : '·' }}
                                         </div>
                                     </div>
                                 @endforeach
