@@ -64,4 +64,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(Weight::class);
     }
+
+    public function importJobs(): HasMany
+    {
+        return $this->hasMany(WorkoutImportJob::class);
+    }
 }
