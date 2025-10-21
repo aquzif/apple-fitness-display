@@ -139,35 +139,96 @@
                 @if (empty($heartrateMinutes))
                     <div class="p-8 text-center text-sm text-slate-400">{{ __('Brak próbek tętna powiązanych z tym treningiem.') }}</div>
                 @else
-                    <div class="max-h-[460px] overflow-y-auto">
-                        <table class="min-w-full divide-y divide-white/10 text-sm">
-                            <thead class="bg-black/40 text-xs uppercase tracking-[0.3em] text-slate-500">
-                                <tr>
-                                    <th scope="col" class="px-4 py-3 text-left">{{ __('Minuta') }}</th>
-                                    <th scope="col" class="px-4 py-3 text-right">{{ __('Minimum') }}</th>
-                                    <th scope="col" class="px-4 py-3 text-right">{{ __('Maksimum') }}</th>
-                                    <th scope="col" class="px-4 py-3 text-right">{{ __('Próbki') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-white/5">
-                                @foreach ($heartrateMinutes as $entry)
-                                    <tr class="hover:bg-white/5">
-                                        <td class="px-4 py-3 text-left font-medium text-white">
-                                            {{ $entry['minute']?->locale(app()->getLocale())->isoFormat('HH:mm') ?? '—' }}
-                                        </td>
-                                        <td class="px-4 py-3 text-right text-slate-200">
-                                            {{ $entry['min'] ?? '—' }}
-                                        </td>
-                                        <td class="px-4 py-3 text-right text-slate-200">
-                                            {{ $entry['max'] ?? '—' }}
-                                        </td>
-                                        <td class="px-4 py-3 text-right text-slate-400">
-                                            {{ $entry['samples'] }}
-                                        </td>
-                                    </tr>
+                    @php
+                        $globalMin = collect($heartrateMinutes)
+                            ->pluck('min')
+                            ->filter(fn ($value) => $value !== null)
+                            ->min();
+                        $globalMax = collect($heartrateMinutes)
+                            ->pluck('max')
+                            ->filter(fn ($value) => $value !== null)
+                            ->max();
+                        $ticks = [];
+                        $range = 1;
+                        $baseline = 0;
+                        if ($globalMin !== null && $globalMax !== null) {
+                            $rawRange = max(0, $globalMax - $globalMin);
+                            $baseline = $globalMin;
+                            if ($rawRange === 0) {
+                                $ticks = array_fill(0, 5, (int) $globalMax);
+                            } else {
+                                $range = max(1, $rawRange);
+                                $steps = 4;
+                                for ($i = 0; $i <= $steps; $i++) {
+                                    $ticks[] = (int) round($globalMax - ($rawRange * $i) / $steps);
+                                }
+                            }
+                        }
+                    @endphp
+
+                    @php
+                        $baseline = $globalMin ?? $globalMax ?? $baseline;
+                        $totalEntries = count($heartrateMinutes);
+                    @endphp
+
+                    <div class="flex flex-col gap-6 p-6">
+                        <div class="relative h-64 w-full">
+                            <div class="absolute inset-0 flex flex-col justify-between">
+                                @foreach ($ticks as $index => $tick)
+                                    <div class="flex items-center gap-3 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                                        <span class="inline-flex w-10 justify-end text-xs font-medium text-slate-400">{{ $tick }}</span>
+                                        <span class="h-px flex-1 bg-white/10"></span>
+                                    </div>
                                 @endforeach
-                            </tbody>
-                        </table>
+                            </div>
+
+                            <div class="absolute inset-x-10 bottom-0 top-0 flex items-end gap-1 sm:gap-2">
+                                @foreach ($heartrateMinutes as $index => $entry)
+                                    @php
+                                        $minute = $entry['minute'];
+                                        $minValue = $entry['min'] ?? $baseline;
+                                        $maxValue = $entry['max'] ?? $baseline;
+                                        $minPct = max(0, min(100, $globalMax !== null ? (($minValue - $baseline) / $range) * 100 : 0));
+                                        $maxPct = max(0, min(100, $globalMax !== null ? (($maxValue - $baseline) / $range) * 100 : 0));
+                                        $showLabel = $index === 0 || $index === $totalEntries - 1 || $index % 5 === 0;
+                                    @endphp
+                                    <div class="flex flex-1 flex-col items-center">
+                                        <div class="relative h-52 w-full">
+                                            <span
+                                                class="absolute left-1/2 w-2 -translate-x-1/2 rounded-full bg-emerald-400/80"
+                                                style="bottom: {{ $minPct }}%; top: {{ 100 - $maxPct }}%;"
+                                            ></span>
+                                            <span
+                                                class="absolute left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-emerald-200"
+                                                style="bottom: calc({{ $minPct }}% - 4px);"
+                                                aria-hidden="true"
+                                            ></span>
+                                            <span
+                                                class="absolute left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-emerald-100"
+                                                style="bottom: calc({{ $maxPct }}% - 4px);"
+                                                aria-hidden="true"
+                                            ></span>
+                                        </div>
+                                        <div class="mt-2 text-center text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                                            {{ $showLabel ? $minute?->locale(app()->getLocale())->isoFormat('HH:mm') : '·' }}
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        <ul class="sr-only">
+                            @foreach ($heartrateMinutes as $entry)
+                                <li>
+                                    {{ __('Minuta :time — minimum :min bpm, maksimum :max bpm, :count próbek', [
+                                        'time' => $entry['minute']?->locale(app()->getLocale())->isoFormat('HH:mm') ?? '—',
+                                        'min' => $entry['min'] ?? '—',
+                                        'max' => $entry['max'] ?? '—',
+                                        'count' => $entry['samples'],
+                                    ]) }}
+                                </li>
+                            @endforeach
+                        </ul>
                     </div>
                 @endif
             </div>
