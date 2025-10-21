@@ -30,7 +30,7 @@ new class extends Component
 
                 <!-- Navigation Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" wire:navigate>
+                    <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard') || request()->routeIs('workouts.show')" wire:navigate>
                         {{ __('Treningi') }}
                     </x-nav-link>
                     <x-nav-link :href="route('import')" :active="request()->routeIs('import')" wire:navigate>
@@ -87,7 +87,7 @@ new class extends Component
     <!-- Responsive Navigation Menu -->
     <div :class="{'block': open, 'hidden': ! open}" class="hidden border-t border-white/10 bg-black/90 sm:hidden">
         <div class="space-y-1 pt-2 pb-3">
-            <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" wire:navigate>
+            <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard') || request()->routeIs('workouts.show')" wire:navigate>
                 {{ __('Treningi') }}
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('import')" :active="request()->routeIs('import')" wire:navigate>

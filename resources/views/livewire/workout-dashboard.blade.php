@@ -163,7 +163,18 @@
 
                                     <div class="grid gap-4 lg:grid-cols-2">
                                         @foreach ($day['items'] as $workout)
-                                            <article class="flex gap-4 rounded-3xl border border-white/5 bg-white/5 p-4 transition hover:border-white/20">
+                                            @php
+                                                $workoutUrl = $workout['id'] ? route('workouts.show', $workout['id']) : null;
+                                            @endphp
+                                            @if ($workoutUrl)
+                                                <a
+                                                    href="{{ $workoutUrl }}"
+                                                    wire:navigate
+                                                    class="flex gap-4 rounded-3xl border border-white/5 bg-white/5 p-4 transition hover:border-white/20"
+                                                >
+                                            @else
+                                                <div class="flex gap-4 rounded-3xl border border-white/5 bg-white/5 p-4 transition hover:border-white/20">
+                                            @endif
                                                 <div class="flex h-20 w-20 flex-none items-center justify-center rounded-2xl" style="background: {{ $workout['iconBackground'] }};">
                                                     @if ($workout['symbol'])
                                                         <img src="/icons/{{ $workout['symbol'] }}" alt="" class="h-12 w-12" loading="lazy" decoding="async" />
@@ -215,7 +226,11 @@
 
                                                     </div>
                                                 </div>
-                                            </article>
+                                            @if ($workoutUrl)
+                                                </a>
+                                            @else
+                                                </div>
+                                            @endif
                                         @endforeach
                                     </div>
                                 </div>
