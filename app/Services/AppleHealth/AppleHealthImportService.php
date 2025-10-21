@@ -44,6 +44,7 @@ class AppleHealthImportService
             $normalizedWorkouts = $normalizer->normalize($rawWorkouts);
             $summary = $this->summaryBuilder->build($normalizedWorkouts);
             $weightRecords = $this->parser->parseBodyMassRecordsFromFile($xmlPath);
+            $heartRateRecords = $this->parser->parseHeartRateRecordsFromFile($xmlPath);
         } finally {
             if ($extractedXmlPath !== null && file_exists($extractedXmlPath)) {
                 @unlink($extractedXmlPath);
@@ -56,7 +57,9 @@ class AppleHealthImportService
             throw new \RuntimeException('Brak treningów w pliku eksportu.');
         }
 
-        return DB::transaction(function () use ($user, $summary, $normalizedWorkouts, $file, $weightRecords) {
+        $workoutHeartRates = $this->groupHeartRatesByWorkout($normalizedWorkouts, $heartRateRecords ?? []);
+
+        return DB::transaction(function () use ($user, $summary, $normalizedWorkouts, $file, $weightRecords, $workoutHeartRates) {
             $import = $user->workoutImports()->create([
                 'original_filename' => $file->getClientOriginalName(),
                 'total_count' => $summary['totalCount'],
@@ -70,12 +73,22 @@ class AppleHealthImportService
             ]);
 
             $records = array_map(fn (array $workout) => $this->recordMapper->mapForDatabase($workout), $normalizedWorkouts);
-            $import->workouts()->createMany($records);
+            $createdWorkouts = $import->workouts()->createMany($records);
+
+            foreach ($createdWorkouts as $index => $createdWorkout) {
+                $samples = $workoutHeartRates[$index] ?? [];
+
+                if ($samples === []) {
+                    continue;
+                }
+
+                $createdWorkout->heartrates()->createMany($samples);
+            }
 
             $weightsImported = $this->storeWeights($user, $weightRecords);
 
             return [
-                'import' => $import->load('workouts'),
+                'import' => $import->load('workouts.heartrates'),
                 'summary' => $summary,
                 'weights_imported' => $weightsImported,
             ];
@@ -136,6 +149,97 @@ class AppleHealthImportService
 
         try {
             return CarbonImmutable::parse($value)->toDateTimeString();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $workouts
+     * @param array<int, array<string, mixed>> $heartRateRecords
+     * @return array<int, array<int, array{timestamp: string, bpm: int}>>
+     */
+    protected function groupHeartRatesByWorkout(array $workouts, array $heartRateRecords): array
+    {
+        $grouped = [];
+        $windows = [];
+
+        foreach ($workouts as $index => $workout) {
+            $start = $this->parseCarbon($workout['startDate'] ?? null);
+            $end = $this->parseCarbon($workout['endDate'] ?? null);
+
+            $grouped[$index] = [];
+
+            if ($start === null || $end === null) {
+                continue;
+            }
+
+            if ($end->lt($start)) {
+                continue;
+            }
+
+            $windows[$index] = ['start' => $start, 'end' => $end];
+        }
+
+        if ($windows === []) {
+            return $grouped;
+        }
+
+        foreach ($heartRateRecords as $record) {
+            $timestamp = $this->parseCarbon($record['startDate'] ?? ($record['endDate'] ?? null));
+            if ($timestamp === null) {
+                continue;
+            }
+
+            $rawValue = $record['value'] ?? null;
+            if (! is_numeric($rawValue)) {
+                continue;
+            }
+
+            $value = (float) $rawValue;
+            if (! is_finite($value)) {
+                continue;
+            }
+
+            foreach ($windows as $index => $window) {
+                if ($timestamp->lt($window['start']) || $timestamp->gt($window['end'])) {
+                    continue;
+                }
+
+                $grouped[$index][] = [
+                    'timestamp' => $timestamp->toDateTimeString(),
+                    'bpm' => (int) round($value),
+                ];
+
+                break;
+            }
+        }
+
+        foreach ($grouped as $index => &$samples) {
+            if ($samples === []) {
+                continue;
+            }
+
+            usort($samples, static fn (array $a, array $b) => strcmp($a['timestamp'], $b['timestamp']));
+        }
+
+        unset($samples);
+
+        return $grouped;
+    }
+
+    private function parseCarbon(mixed $value): ?CarbonImmutable
+    {
+        if ($value instanceof CarbonImmutable) {
+            return $value;
+        }
+
+        if (! is_string($value) || $value === '') {
+            return null;
+        }
+
+        try {
+            return CarbonImmutable::parse($value);
         } catch (\Throwable) {
             return null;
         }
