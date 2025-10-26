@@ -6,9 +6,7 @@ use App\Models\User;
 use App\Models\Weight;
 use App\Models\WorkoutImport;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Carbon\CarbonImmutable;
-use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use ZipArchive;
 
 class AppleHealthImportService
@@ -23,15 +21,14 @@ class AppleHealthImportService
     /**
      * @return array{import: WorkoutImport, summary: array<string, mixed>, weights_imported: int}
      */
-    public function import(User $user, TemporaryUploadedFile $file): array
+    public function import(User $user, AppleHealthUploadedFile $file): array
     {
         $config = config('workout_types');
         $defaultType = $config['default'] ?? [];
         $workoutTypes = $config['types'] ?? [];
         $normalizer = new WorkoutDataNormalizer($workoutTypes, $defaultType);
 
-        $path = $file->store('apple-health');
-        $absolutePath = Storage::path($path);
+        $absolutePath = $file->absolutePath();
         $extractedXmlPath = null;
 
         try {
@@ -50,7 +47,7 @@ class AppleHealthImportService
                 @unlink($extractedXmlPath);
             }
 
-            Storage::delete($path);
+            $file->delete();
         }
 
         if ($normalizedWorkouts === []) {
@@ -61,7 +58,7 @@ class AppleHealthImportService
 
         return DB::transaction(function () use ($user, $summary, $normalizedWorkouts, $file, $weightRecords, $workoutHeartRates) {
             $import = $user->workoutImports()->create([
-                'original_filename' => $file->getClientOriginalName(),
+                'original_filename' => $file->originalFilename(),
                 'total_count' => $summary['totalCount'],
                 'total_duration_seconds' => $summary['totalDurationSeconds'],
                 'total_energy' => $summary['totalEnergy'],
@@ -70,6 +67,7 @@ class AppleHealthImportService
                 'total_burnt_energy_unit' => $summary['totalBurntEnergyUnit'],
                 'total_distance' => $summary['totalDistance'],
                 'total_distance_unit' => $summary['totalDistanceUnit'],
+                'weights_imported' => $weightsImported,
             ]);
 
             $records = array_map(fn (array $workout) => $this->recordMapper->mapForDatabase($workout), $normalizedWorkouts);
@@ -245,7 +243,7 @@ class AppleHealthImportService
         }
     }
 
-    private function resolveXmlPath(TemporaryUploadedFile $file, string $absolutePath): string
+    private function resolveXmlPath(AppleHealthUploadedFile $file, string $absolutePath): string
     {
         if (! $this->shouldTreatAsZip($file, $absolutePath)) {
             return $absolutePath;
@@ -254,19 +252,19 @@ class AppleHealthImportService
         return $this->extractExportXmlFromZip($absolutePath);
     }
 
-    private function shouldTreatAsZip(TemporaryUploadedFile $file, string $absolutePath): bool
+    private function shouldTreatAsZip(AppleHealthUploadedFile $file, string $absolutePath): bool
     {
         $extension = strtolower((string) pathinfo($absolutePath, PATHINFO_EXTENSION));
         if ($extension === 'zip') {
             return true;
         }
 
-        $clientExtension = strtolower((string) $file->getClientOriginalExtension());
+        $clientExtension = strtolower((string) $file->clientExtension());
         if ($clientExtension === 'zip') {
             return true;
         }
 
-        $mimeType = $file->getMimeType();
+        $mimeType = $file->mimeType();
         if (is_string($mimeType) && str_contains($mimeType, 'zip')) {
             return true;
         }

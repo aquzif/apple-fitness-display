@@ -22,6 +22,7 @@ class WorkoutImport extends Model
         'total_distance_unit',
         'total_burnt_energy',
         'total_burnt_energy_unit',
+        'weights_imported',
     ];
 
     protected $casts = [
@@ -30,6 +31,7 @@ class WorkoutImport extends Model
         'total_energy' => 'float',
         'total_distance' => 'float',
         'total_burnt_energy' => 'float',
+        'weights_imported' => 'integer',
     ];
 
     public function user(): BelongsTo
